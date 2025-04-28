@@ -1,0 +1,18 @@
+1. display current fps
+2. abstract the spatial hash into a reusable class
+3. implement surface tension
+4. send particle specific data to the fragment shader (for visualizaton)
+5. control when the simualtion starts
+6. hot reloading settings/variable changes
+7. why does visual studio compiler try to compile/access a deleted file (Kernels.cpp)
+8. faster neighbor search ** (not sure it was faster)
+9. flatten the force calculation loops make them fewer
+10. in the get pressure function use max instead of min
+11. call interact mouse with neighborhood particles instead of running it for all the particles
+12. use a pointer store to reference particle neighbors, instead of computing them twice in a single simulation run
+13. are very fast moving particles the cause of the performance dipping?
+14. display the time taken for a frame:
+    - Measurement
+        - glfwGetTime()
+    - Display
+        - 
