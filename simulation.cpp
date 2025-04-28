@@ -14,7 +14,7 @@ Simulation::Simulation(Shader& circleShaderProgram, Welol::Renderer& glRenderer)
     float spacing = 0.2f;
 
 
-    float startPos[2] = { -size * 0.5f * spacing, size * 0.5f * spacing };
+    float startPos[2] = { -size * 0.5f * spacing + 0.05f, size * 0.5f * spacing - 0.05f };
    
 
     assert(numParticles > 0);
@@ -41,12 +41,12 @@ Simulation::Simulation(Shader& circleShaderProgram, Welol::Renderer& glRenderer)
         }
     }
     
-    table.initializeTable(particlesInfo.positions);
+    table.createTable(particlesInfo.positions);
     setUpRendering(glRenderer);
 
 
     // 
-
+    std::cout << table.getCellSize() << std::endl;
     float containerWidth = table.getHorizontalCellsCount() * table.getCellSize();
     float containerHeight = table.getVerticalCellCount() * table.getCellSize();
 
@@ -65,20 +65,25 @@ void Simulation::update(Welol::Renderer& glRenderer, glm::mat4& view, float dt) 
     // computeForces();
     // LeapFrogIntegration(dt);
     // table.clearTable();
-    
+
+    glm::vec2 particlePos = particlesInfo.positions[55];
+    std::vector<unsigned int> neighbors = table.getNeighborIDs(particlePos);
+
+
     updateRendering(glRenderer, view, perspectiveMatrix);
     vis.drawGrid(glRenderer, view, perspectiveMatrix);
 
-    vis.drawCircle(0.0f, 0.0f, radiusOfInfluence, view, perspectiveMatrix, glRenderer);
+    vis.drawCircle(particlePos.x, particlePos.y, radiusOfInfluence, view, perspectiveMatrix, glRenderer);
+
+    for (unsigned int i = 0; i < neighbors.size(); i++)
+    {
+        glm::vec2 p = particlesInfo.positions[neighbors[i]];
+        float dist = getDistance(p, particlePos);
+        vis.drawCircle(p.x, p.y, 0.05f, view, perspectiveMatrix, glRenderer);
+    }
 }
 
-/*
-    1. generate()
-    2. bind()
-    3. assign data / memory
-    4. subdata
-    3. clean up
-*/
+
 void Simulation::setUpRendering(Welol::Renderer& glRenderer) {
 
     int size = sizeof(glm::vec2);
@@ -118,53 +123,6 @@ void Simulation::updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, g
 
 
 
-// getDistance: get distance between two locations
-float Simulation::getDistance(glm::vec2& pos1, glm::vec2& pos2)
-{	
-    float x_dist = (pos2.x - pos1.x);
-    float y_dist = (pos2.y - pos1.y);
-
-    return sqrtf(x_dist * x_dist + y_dist * y_dist);
-}
-
-// poly6a: poly6 kernel
-float Simulation::poly6(float dist)
-{	
-    return powf((radiusOfInfluence * radiusOfInfluence - dist * dist), 3);
-}
-
-// _max: return max of two value
-float Simulation::_min(float a, float b)
-{
-    return a > b ? a : b;
-}
-
-// getPressure: return the pressure to be applied to a particle
-float Simulation::getPressure(float d)
-{	
-    float v = pressureMultiplier * (d - idealDensity);
-    return std::max(v, 0.0f);
-}
-
-// avPressure: return the average pressure between 
-// two particles
-float Simulation::avPressure(float a, float b)
-{
-    return ((a + b) / (2.0));
-}
-
-// getPressureGradient: the pressure gradient kernel
-float Simulation::getPressureGradient(float dist)
-{
-    return spikyGrad * (pow((radiusOfInfluence - dist), 2.0));
-}
-
-// getViscGradient: the viscosity gradient kernel
-float Simulation::getViscGradient(float dist)
-{
-    return spikyLap * (radiusOfInfluence - dist);
-}
-
 
 // computeDensities: compute densities for all the particles
 void Simulation::computeDensities()
@@ -176,28 +134,21 @@ void Simulation::computeDensities()
         //int nbSize = particlesInfo.neighbors[i].size();
         float density = 1.0f;
 
-        std::vector<unsigned int> neighborCellsKeys = table.computeNeighboringCellsKeys(particlesInfo.positions[i]);
+        std::vector<unsigned int> neighborIDs = table.getNeighborIDs(particlesInfo.positions[i]);
+    
+        unsigned int size = neighborIDs.size();
+        for (unsigned int id: neighborIDs)
+        {
+            if (id == i)
+                continue;
+            dist = getDistance(particlesInfo.positions[i], particlesInfo.positions[id]);
 
-        unsigned int size = neighborCellsKeys.size();
-        for (unsigned int key: neighborCellsKeys)
-        {	  
-            
-            for (unsigned int neighborIndex : table.getCell(key)) {
-                
-                if (neighborIndex == i)
-                    continue;
-                
-                dist = getDistance(particlesInfo.positions[i], particlesInfo.positions[neighborIndex]);
-
-                if (dist < radiusOfInfluence) {
+            if (dist < radiusOfInfluence) {
                    
-                    density += mass * poly6(dist) * poly6Const;
-                }
-                    
+                density += mass * poly6(dist) * poly6Const;
             }
-            
-            
         }
+            
         
         particlesInfo.densities[i] = density;
 
@@ -208,6 +159,8 @@ void Simulation::computeDensities()
         particlesInfo.pressures[i] = getPressure(density);
     }
 }
+
+/*
 
 // computePressure: pressure acting between two particles
  float Simulation::computePressureSingleParticle(
@@ -220,47 +173,7 @@ void Simulation::computeDensities()
      return (mass / neighborDensity) * avPressure(currentPressure, neighborPressure) * getPressureGradient(dist);
 }
 
-/*
-// computeViscosity: calculate viscous force between two particles
-float Simulation::computeViscosity(Particle& p, Particle& nb, float dist)
-{
-    return (mass / nb.density) * getViscGradient(dist);
-}
 
-void Simulation::interactWithMouse(
-    Particle&p,
-    glm::vec4 mousePos,
-    bool mouseClick[],
-    std::vector<Particle>(&Table)[NUMCELLS]
-)
-{
-    // get distance from mouse position
-    float xDist = mousePos.x - p.pos[0];
-    float yDist = mousePos.y - p.pos[1];
-    float speed = 0.85;
-    float infDist = 2.0;
-    float distSqr = xDist * xDist + yDist * yDist;
-
-    if (distSqr < (infDist * infDist) )
-    {
-        float dist = sqrt(distSqr);
-        float dir[2] = { xDist / dist, yDist / dist };
-        // repel
-        if (dist < infDist && mouseClick[0])
-        {
-            p.velocity[0] += (-dir[0] * speed);
-            p.velocity[1] += (-dir[1] * speed);
-        }
-
-        // attract
-        if (dist < infDist && mouseClick[1])
-        {
-            p.velocity[0] += (dir[0] * speed);
-            p.velocity[1] += (dir[1] * speed);
-        }
-    }
-}
-*/
 
 // computePressures: compute the pressure values of the particles
  void Simulation::computePressures() {
@@ -342,7 +255,8 @@ void Simulation::computeForces() {
         }
     }
 }
-/*
+
+
 // simulateParticle: complete run on a single particle's simulation
 void simulateParticle(Particle& p, std::vector<Particle> &nbs, int N)
 {
@@ -376,16 +290,12 @@ void simulateParticle(Particle& p, std::vector<Particle> &nbs, int N)
     p.totalForce[1] = pressureForce[1] + viscForce[1] * VISCMULTIPLIER;
 
 }
-*/
+
 
 
 // LeapFrogIntegration: integrate particle's position and velocity
 void Simulation::LeapFrogIntegration(float deltaTime)
 {
-    /*
-    std::cout << "boundaries.x: " << boundaries.x << std::endl;
-    std::cout << "boundaries.y: " << boundaries.y << std::endl;
-    */
 
     // std::cout << "position.x: " << particlesInfo.positions[0].x << std::endl;
     for(unsigned int i = 0; i < numParticles; i++ ) {
@@ -442,6 +352,8 @@ void Simulation::LeapFrogIntegration(float deltaTime)
     
 }
 
+*/
+
 // convert world coordinate to the screen space coordinate
 glm::vec2 Simulation::worldToScreen(glm::vec2& position, glm::mat4& view) {
     glm::vec4 clip = perspectiveMatrix * view * glm::vec4(position.x, position.y, 0.0f, 0.0f);
@@ -458,3 +370,91 @@ glm::vec4 Simulation::ndcToWorld(glm::vec4& vec, glm::mat4& view, glm::mat4& pro
 }
 
 
+// getDistance: get distance between two locations
+float Simulation::getDistance(glm::vec2& pos1, glm::vec2& pos2)
+{	
+    float x_dist = (pos2.x - pos1.x);
+    float y_dist = (pos2.y - pos1.y);
+
+    return sqrtf(x_dist * x_dist + y_dist * y_dist);
+}
+
+// poly6a: poly6 kernel
+float Simulation::poly6(float dist)
+{	
+    return powf((radiusOfInfluence * radiusOfInfluence - dist * dist), 3);
+}
+
+// _max: return max of two value
+float Simulation::_min(float a, float b)
+{
+    return a > b ? a : b;
+}
+
+// getPressure: return the pressure to be applied to a particle
+float Simulation::getPressure(float d)
+{	
+    float v = pressureMultiplier * (d - idealDensity);
+    return std::max(v, 0.0f);
+}
+
+// avPressure: return the average pressure between 
+// two particles
+float Simulation::avPressure(float a, float b)
+{
+    return ((a + b) / (2.0));
+}
+
+// getPressureGradient: the pressure gradient kernel
+float Simulation::getPressureGradient(float dist)
+{
+    return spikyGrad * (pow((radiusOfInfluence - dist), 2.0));
+}
+
+// getViscGradient: the viscosity gradient kernel
+float Simulation::getViscGradient(float dist)
+{
+    return spikyLap * (radiusOfInfluence - dist);
+}
+
+// computeViscosity: calculate viscous force between two particles
+// float Simulation::computeViscosity(Particle& p, Particle& nb, float dist)
+// {
+//     return (mass / nb.density) * getViscGradient(dist);
+// }
+
+/*
+void Simulation::interactWithMouse(
+    Particle&p,
+    glm::vec4 mousePos,
+    bool mouseClick[],
+    std::vector<Particle>(&Table)[NUMCELLS]
+)
+{
+    // get distance from mouse position
+    float xDist = mousePos.x - p.pos[0];
+    float yDist = mousePos.y - p.pos[1];
+    float speed = 0.85;
+    float infDist = 2.0;
+    float distSqr = xDist * xDist + yDist * yDist;
+
+    if (distSqr < (infDist * infDist) )
+    {
+        float dist = sqrt(distSqr);
+        float dir[2] = { xDist / dist, yDist / dist };
+        // repel
+        if (dist < infDist && mouseClick[0])
+        {
+            p.velocity[0] += (-dir[0] * speed);
+            p.velocity[1] += (-dir[1] * speed);
+        }
+
+        // attract
+        if (dist < infDist && mouseClick[1])
+        {
+            p.velocity[0] += (dir[0] * speed);
+            p.velocity[1] += (dir[1] * speed);
+        }
+    }
+}
+*/

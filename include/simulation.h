@@ -49,7 +49,7 @@ private:
     } particlesInfo;
 
     // The number of particles to be simulated
-    unsigned int numParticles {30 * 30};
+    unsigned int numParticles {50 * 50};
     float gravity {0.0f};
     float SCR_WIDTH{ 600.0f };
     float SCR_HEIGHT{ 600.0f };
