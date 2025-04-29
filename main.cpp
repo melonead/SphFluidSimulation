@@ -147,7 +147,7 @@ int main()
         glfwGetCursorPos(window, &mousePosX, &mousePosY);
         
         //vMat = glm::translate(vMat, glm::vec3(0.0f, 0.0f, 0.5f));
-        deltaTime = (1.0 / 90.0);
+        deltaTime = (1.0 / 60.0);
 
         if (!rotateCamera)
         {

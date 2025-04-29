@@ -49,7 +49,7 @@ private:
     } particlesInfo;
 
     // The number of particles to be simulated
-    unsigned int numParticles {50 * 50};
+    
     float gravity {0.0f};
     float SCR_WIDTH{ 600.0f };
     float SCR_HEIGHT{ 600.0f };
@@ -61,12 +61,11 @@ private:
 
     float pi = 3.145;
     const float poly6Const = 315.0f / (64.0f * pi * pow(radiusOfInfluence, 9.0f));
-    const float spikyGrad = -45.0f / (pi * pow(radiusOfInfluence, 6.0f));
     const float spikyLap = 45.0f / (pi * pow(radiusOfInfluence, 6.0f));
 
     float maxSpeed{ 3.0f };
     float damp{ -0.8f };
-    float idealDensity{ 1000.0f };
+    float idealDensity{ 50.0f };
     float pressureMultiplier{ 1.0f };
     float mass{ 1.0f };
 

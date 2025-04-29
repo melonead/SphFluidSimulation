@@ -60,10 +60,10 @@ Simulation::~Simulation() {
 
 void Simulation::update(Welol::Renderer& glRenderer, glm::mat4& view, float dt) {
 
-    // computeDensities();
+    computeDensities();
     // computePressures();
-    // computeForces();
-    // LeapFrogIntegration(dt);
+    computeForces();
+    //LeapFrogIntegration(dt);
     // table.clearTable();
 
     glm::vec2 particlePos = particlesInfo.positions[55];
@@ -79,8 +79,11 @@ void Simulation::update(Welol::Renderer& glRenderer, glm::mat4& view, float dt) 
     {
         glm::vec2 p = particlesInfo.positions[neighbors[i]];
         float dist = getDistance(p, particlePos);
+        //if (dist < radiusOfInfluence)
         vis.drawCircle(p.x, p.y, 0.05f, view, perspectiveMatrix, glRenderer);
     }
+
+    table.createTable(particlesInfo.positions);
 }
 
 
@@ -116,7 +119,7 @@ void Simulation::updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, g
 
     shaderProg.setMatrix4fv("view", view);
     shaderProg.setMatrix4fv("projection", projection);
-
+    glRenderer.updateRenderOperationVertexAttribute(particleRenderOperation, 0, 0, particlesInfo.positions.data());
 }
 
 
@@ -143,38 +146,137 @@ void Simulation::computeDensities()
                 continue;
             dist = getDistance(particlesInfo.positions[i], particlesInfo.positions[id]);
 
-            if (dist < radiusOfInfluence) {
+            if (dist <= radiusOfInfluence) {
                    
                 density += mass * poly6(dist) * poly6Const;
             }
         }
             
-        
         particlesInfo.densities[i] = density;
 
-        // The pressure computed here is an intermediate value as a result of the
-        // differences between the density computed and the ideal density, another
-        // pressure value (which takes this into account) will be computed.
-        // 26/03/2025
-        particlesInfo.pressures[i] = getPressure(density);
+    }
+
+}
+
+
+void Simulation::computeForces()
+{
+    for (int i = 0; i < numParticles; i++)
+    {
+        float dist = 0.0f;
+        float pressureDensityFieldValue = 0.0f;
+        std::vector<unsigned int> neighborIDs = table.getNeighborIDs(particlesInfo.positions[i]);
+        float forceFieldX = 0.0f;
+        float forceFieldY = 0.0f;
+    
+        unsigned int size = neighborIDs.size();
+
+        // Compute the force density field value at this location
+        for (unsigned int id: neighborIDs)
+        {
+            if (id == i)
+                continue;
+            dist = getDistance(particlesInfo.positions[i], particlesInfo.positions[id]);
+
+            if (dist <= radiusOfInfluence) 
+            {
+                // Compute pressure field
+                float pressNeig = getPressure(particlesInfo.densities[id]);
+                float PressCurr = getPressure(particlesInfo.densities[i]);
+                float densNeig = particlesInfo.densities[id];
+                pressureDensityFieldValue += computePressureSingleParticle(PressCurr, pressNeig, densNeig, dist);
+                //std::cout << "v: " << pressureDensityFieldValue << std::endl;
+                glm::vec2 vec = particlesInfo.positions[id] - particlesInfo.positions[i];
+                forceFieldX += (vec.x/dist) * pressureDensityFieldValue;
+                forceFieldY += (vec.y/dist) * pressureDensityFieldValue;
+            }
+        }
+
+        float pressureMultiplier = 1.0f;
+        // Compute acceleration
+        float accX = (-forceFieldX * pressureMultiplier) / particlesInfo.densities[i];
+        float accY = (-forceFieldY * pressureMultiplier) / particlesInfo.densities[i];
+        // Compute velocity 
+        // REVISIT: temporary 
+        float deltaTime = (1.0f/60.0f);
+        particlesInfo.velocities[i][0] += accX * deltaTime;
+        particlesInfo.velocities[i][1] += accY * deltaTime;
+        //particlesInfo.velocities[i][1] += (-9.8f * deltaTime) ;
+
+
+
+
+
+
+        // --------------------------------------------------------------------------------------------------------------
+        float ax = 0.0f;
+        float ay = 0.0f;
+        float boundaryX = cellSize * table.getHorizontalCellsCount() * 0.5f;
+        float boundaryY = cellSize * table.getVerticalCellCount() * 0.5f;
+    
+        if (particlesInfo.velocities[i][0] > maxSpeed) {
+            particlesInfo.velocities[i][0] = std::min(particlesInfo.velocities[i][0], maxSpeed);
+        }
+        else if (particlesInfo.velocities[i][0] < -maxSpeed) {
+            particlesInfo.velocities[i][0] = std::max(particlesInfo.velocities[i][0], -maxSpeed);
+        }
+        particlesInfo.positions[i].x += (particlesInfo.velocities[i][0] * deltaTime + (ax * pow(deltaTime, 2)) / 2.0);
+        //p.predictedPosition[0] = particlesInfo.positions[i].x + particlesInfo.velocities[i][0] * deltaTime;
+
+        float eps = 0.01f;
+        if ((particlesInfo.positions[i].x + eps) < -boundaryX)
+        {
+
+            particlesInfo.velocities[i][0] *= damp;
+            particlesInfo.positions[i].x = -boundaryX + eps;
+
+        }
+
+        if ((particlesInfo.positions[i].x + eps) > boundaryX) {
+            particlesInfo.velocities[i][0] *= damp;
+            particlesInfo.positions[i].x = boundaryX - eps;
+        }
+
+        particlesInfo.velocities[i][1] += gravity * deltaTime;
+        if (particlesInfo.velocities[i][1] > maxSpeed) {
+            particlesInfo.velocities[i][1] = std::min(particlesInfo.velocities[i][1], maxSpeed);
+        }
+        else if (particlesInfo.velocities[i][1] < -maxSpeed) {
+            particlesInfo.velocities[i][1] = std::max(particlesInfo.velocities[i][1], -maxSpeed);
+        }
+        particlesInfo.positions[i].y += (particlesInfo.velocities[i][1] * deltaTime + (ay * pow(deltaTime, 2.0)) / 2.0);
+        //p.predictedPosition[1] = particlesInfo.positions[i].y + particlesInfo.velocities[i][1] * deltaTime;
+
+        if ((particlesInfo.positions[i].y - eps) < -boundaryY)
+        {
+            particlesInfo.velocities[i][1] *= damp;
+            particlesInfo.positions[i].y = -boundaryY + eps;
+
+        }
+        if ((particlesInfo.positions[i].y + eps) > boundaryY) {
+            particlesInfo.velocities[i][1] *= damp;
+            particlesInfo.positions[i].y = boundaryY - eps;
+        }
+        // --------------------------------------------------------------------------------------------------------------
     }
 }
 
-/*
-
-// computePressure: pressure acting between two particles
- float Simulation::computePressureSingleParticle(
-     float currentPressure,
-     float neighborPressure, 
-     float neighborDensity, 
-     float dist
- )
+// 
+float Simulation::computePressureSingleParticle(
+    float currentPressure,
+    float neighborPressure, 
+    float neighborDensity, 
+    float dist
+)
 {
-     return (mass / neighborDensity) * avPressure(currentPressure, neighborPressure) * getPressureGradient(dist);
+    float symm = (currentPressure + neighborPressure) / (2.0f);
+    float grad = (15.0f / (PI * powf(radiusOfInfluence, 6))) * powf((radiusOfInfluence - dist), 3);
+
+    return mass * symm * grad;
 }
 
 
-
+/*
 // computePressures: compute the pressure values of the particles
  void Simulation::computePressures() {
 
@@ -291,16 +393,18 @@ void simulateParticle(Particle& p, std::vector<Particle> &nbs, int N)
 
 }
 
-
+*/
 
 // LeapFrogIntegration: integrate particle's position and velocity
 void Simulation::LeapFrogIntegration(float deltaTime)
 {
 
     // std::cout << "position.x: " << particlesInfo.positions[0].x << std::endl;
+    float ax = 0.0f;
+    float ay = 0.0f;
+    float boundaryX = cellSize * table.getHorizontalCellsCount() * 0.5f;
+    float boundaryY = cellSize * table.getVerticalCellCount() * 0.5f;
     for(unsigned int i = 0; i < numParticles; i++ ) {
-        float ax = ((particlesInfo.forces[i][0] / particlesInfo.densities[i]) * deltaTime);
-        particlesInfo.velocities[i][0] += (ax * deltaTime) / 2.0f;
         if (particlesInfo.velocities[i][0] > maxSpeed) {
             particlesInfo.velocities[i][0] = std::min(particlesInfo.velocities[i][0], maxSpeed);
         }
@@ -311,21 +415,19 @@ void Simulation::LeapFrogIntegration(float deltaTime)
         //p.predictedPosition[0] = particlesInfo.positions[i].x + particlesInfo.velocities[i][0] * deltaTime;
 
         float eps = 0.01f;
-        if ((particlesInfo.positions[i].x + eps) < -1.25f)
+        if ((particlesInfo.positions[i].x + eps) < -boundaryX)
         {
 
             particlesInfo.velocities[i][0] *= damp;
-            particlesInfo.positions[i].x = -1.25 + eps;
+            particlesInfo.positions[i].x = -boundaryX + eps;
 
         }
 
-        if ((particlesInfo.positions[i].x + eps) > 1.25f) {
+        if ((particlesInfo.positions[i].x + eps) > boundaryX) {
             particlesInfo.velocities[i][0] *= damp;
-            particlesInfo.positions[i].x = 1.25f - eps;
+            particlesInfo.positions[i].x = boundaryX - eps;
         }
 
-        float ay = ((particlesInfo.forces[i][1] / particlesInfo.densities[i]) * deltaTime);
-        particlesInfo.velocities[i][1] += ((ay) * deltaTime) / 2.0f;
         particlesInfo.velocities[i][1] += gravity * deltaTime;
         if (particlesInfo.velocities[i][1] > maxSpeed) {
             particlesInfo.velocities[i][1] = std::min(particlesInfo.velocities[i][1], maxSpeed);
@@ -336,23 +438,21 @@ void Simulation::LeapFrogIntegration(float deltaTime)
         particlesInfo.positions[i].y += (particlesInfo.velocities[i][1] * deltaTime + (ay * pow(deltaTime, 2.0)) / 2.0);
         //p.predictedPosition[1] = particlesInfo.positions[i].y + particlesInfo.velocities[i][1] * deltaTime;
 
-        if ((particlesInfo.positions[i].y - eps) < -1.25f)
+        if ((particlesInfo.positions[i].y - eps) < -boundaryY)
         {
             particlesInfo.velocities[i][1] *= damp;
-            particlesInfo.positions[i].y = -1.25 + eps;
+            particlesInfo.positions[i].y = -boundaryY + eps;
 
         }
-        if ((particlesInfo.positions[i].y + eps) > 1.25) {
+        if ((particlesInfo.positions[i].y + eps) > boundaryY) {
             particlesInfo.velocities[i][1] *= damp;
-            particlesInfo.positions[i].y = 1.25 - eps;
+            particlesInfo.positions[i].y = boundaryY - eps;
         }
 
-        table.insertInCell(particlesInfo.positions[i], i);
     }
     
 }
 
-*/
 
 // convert world coordinate to the screen space coordinate
 glm::vec2 Simulation::worldToScreen(glm::vec2& position, glm::mat4& view) {
@@ -394,21 +494,16 @@ float Simulation::_min(float a, float b)
 // getPressure: return the pressure to be applied to a particle
 float Simulation::getPressure(float d)
 {	
-    float v = pressureMultiplier * (d - idealDensity);
+    float v = pressureMultiplier * (idealDensity - d);
     return std::max(v, 0.0f);
 }
 
-// avPressure: return the average pressure between 
-// two particles
-float Simulation::avPressure(float a, float b)
-{
-    return ((a + b) / (2.0));
-}
 
 // getPressureGradient: the pressure gradient kernel
 float Simulation::getPressureGradient(float dist)
 {
-    return spikyGrad * (pow((radiusOfInfluence - dist), 2.0));
+    float s = 15.0f / (pi * pow(radiusOfInfluence, 6.0f));
+    return s * (pow((radiusOfInfluence - dist), 3.0));
 }
 
 // getViscGradient: the viscosity gradient kernel

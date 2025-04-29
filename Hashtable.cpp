@@ -59,6 +59,11 @@ std::vector<unsigned int> HashTable::getNeighborIDs(glm::vec2& position)
 
 void HashTable::createTable(std::vector<glm::vec2>& positions)
 {
+	// REVISIT: Is there another way to make all the values zeros
+	unsigned int cellsNumber = getVerticalCellCount() * getHorizontalCellsCount();
+	grid = std::vector<unsigned int>(cellsNumber + 1, 0);
+	sortedParticleIDs = std::vector<unsigned int>(numParticles, 0);
+	particleCounts = std::vector<unsigned int>(cellsNumber, 0);
 	unsigned int size = positions.size();
 	// Compute cell particle count
 	for(unsigned int i = 0; i < size; i++)
@@ -70,7 +75,7 @@ void HashTable::createTable(std::vector<glm::vec2>& positions)
 		particleCounts[key]++;
 	}
 	// compute partial sums
-	unsigned int cellsNumber = getVerticalCellCount() * getHorizontalCellsCount();
+	
 	for(unsigned int i = 0; i < cellsNumber; i++)
 	{
 		grid[i + 1]  += grid[i];
@@ -87,8 +92,6 @@ void HashTable::createTable(std::vector<glm::vec2>& positions)
 		grid[key]--;
 		sortedParticleIDs[grid[key]] = particleID;
 	}
-
-	int k = 0;
 
 }
 
