@@ -18,7 +18,6 @@ public:
         : cSize(cellSize)
     {
 
-        std::cout << containerHeight << std::endl;
         /*
             Grid render operation set up.
         */

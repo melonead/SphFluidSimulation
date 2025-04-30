@@ -7,10 +7,20 @@
 #include <glm/vec2.hpp>
 #include "sharedVariables.h"
 
+
+/*
+		Query for the neighbors of a point
+	*/
+struct NeighborQuery
+{
+	std::vector<unsigned int> neighborBucket;
+	unsigned int size{0};
+};
+
+
 class HashTable {
 	
 public:
-
 	HashTable(unsigned int numberOfParticles);
 
 	
@@ -18,10 +28,10 @@ public:
 		Get the IDs of all the neighboring particles.
 	*/
 
-	std::vector<unsigned int> getNeighborIDs(glm::vec2& position);
+	NeighborQuery getNeighborIDs(glm::vec2& position);
+	
 
 	void createTable(std::vector<glm::vec2>& positions);
-	
 	
 	float getCellSize() {return cellSize; };
 	unsigned int getHorizontalCellsCount() {return boundedTableInfo.horizontalCellsCount; };
@@ -71,6 +81,9 @@ private:
 	*/
 	std::vector<unsigned int> particleCounts;
 
+	NeighborQuery query;
+
+	
 
 
 	/*

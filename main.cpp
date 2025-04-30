@@ -16,6 +16,7 @@
 #include "simulation.h"
 #include "Renderer.h"
 #include "Camera.h"
+#include "sharedVariables.h"
 // #include <SOIL2/SOIL2.h>
 
 
@@ -26,10 +27,6 @@ float randomFloat(float Min, float Max);
 
 void mouse_callback(GLFWwindow* window,double xpos,double ypos);
 void mouse_scroll_callback(GLFWwindow*window, double x, double y);
-
-static int SCR_WIDTH =  800;
-static int SCR_HEIGHT = 800;
-
 
 double lastX = 0.0;
 double lastY = 0.0;
@@ -104,7 +101,6 @@ int main()
 
     // time
     double lastTime = glfwGetTime();
-    double deltaTime = 0.0;
 
     // initialize
 
@@ -129,9 +125,6 @@ int main()
 
     while (!glfwWindowShouldClose(window))
     {
-        
-        deltaTime = glfwGetTime() - lastTime;
-        lastTime = glfwGetTime();
 
 
         glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
@@ -147,7 +140,6 @@ int main()
         glfwGetCursorPos(window, &mousePosX, &mousePosY);
         
         //vMat = glm::translate(vMat, glm::vec3(0.0f, 0.0f, 0.5f));
-        deltaTime = (1.0 / 60.0);
 
         if (!rotateCamera)
         {

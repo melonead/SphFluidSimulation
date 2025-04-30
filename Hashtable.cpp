@@ -24,15 +24,23 @@ HashTable::HashTable(unsigned int numberOfParticles)
 	{
 		particleIDs[i] = i;
 	}
+
+	query.neighborBucket.reserve(72);
+	query.neighborBucket.resize(72);
+
+	std::cout << query.neighborBucket.size() << std::endl;
+
 }
 
 
 
-std::vector<unsigned int> HashTable::getNeighborIDs(glm::vec2& position)
+NeighborQuery HashTable::getNeighborIDs(glm::vec2& position)
 {
 	// REVISIT: Perhaps make this a member variable?
-	std::vector<unsigned int> ids;
 	unsigned int neighborCellsCount = 9;
+
+
+	query.size = 0;
 
 	glm::vec2 currentCellPos = getCellPosition(position);
 	glm::vec2 neighborCellPos;
@@ -47,14 +55,24 @@ std::vector<unsigned int> HashTable::getNeighborIDs(glm::vec2& position)
 		unsigned int start = grid[key];
 		// Go to particleCount and find how much to advance start at start
 		unsigned int size = particleCounts[key];
+		// std::cout << "cell size: " << size << std::endl;
+
+		//std::cout << "query.size: " << query.size << std::endl;
 		for (unsigned int i = 0; i < size; i++)
 		{
 			unsigned int id = sortedParticleIDs[start + i];
-			ids.push_back(id);
+
+			 if (query.size >= query.neighborBucket.size())
+			 {
+			 	query.neighborBucket.resize(query.size + 10);
+			 }
+
+			query.neighborBucket[query.size] = id;
+			query.size += 1;
 		}
 	}
 
-	return ids;
+	return query;
 }
 
 void HashTable::createTable(std::vector<glm::vec2>& positions)
@@ -62,27 +80,27 @@ void HashTable::createTable(std::vector<glm::vec2>& positions)
 	// REVISIT: Is there another way to make all the values zeros
 	unsigned int cellsNumber = getVerticalCellCount() * getHorizontalCellsCount();
 	grid = std::vector<unsigned int>(cellsNumber + 1, 0);
-	sortedParticleIDs = std::vector<unsigned int>(numParticles, 0);
 	particleCounts = std::vector<unsigned int>(cellsNumber, 0);
-	unsigned int size = positions.size();
+	unsigned int numParticles = positions.size();
 	// Compute cell particle count
-	for(unsigned int i = 0; i < size; i++)
+	for(unsigned int i = 0; i < numParticles; i++)
 	{
 		glm::vec2& position = positions[i];
 		unsigned int key = computeKey(position);
-		grid[key]++;
+
+		grid[key] += 1;
 		// This apparent duplication is necessary because cellParticlesCout is goint to change.
-		particleCounts[key]++;
+		particleCounts[key] += 1;
 	}
 	// compute partial sums
-	
+	int k = 0;
 	for(unsigned int i = 0; i < cellsNumber; i++)
 	{
 		grid[i + 1]  += grid[i];
 	}
 	// Sort the particle ID, particles in the same cell will be next to each other
 	
-	for(unsigned int i = 0; i < size; i++)
+	for(unsigned int i = 0; i < numParticles; i++)
 	{
 		glm::vec2& position = positions[i];
 		unsigned int particleID = particleIDs[i];
@@ -103,7 +121,7 @@ int HashTable::tableHash(glm::vec2& cellPos)
 
 	int n = (getHorizontalCellsCount() * getVerticalCellCount());
 
-	return abs(((x * P1) + ( y * P2)) % n);
+	return abs((x * P1) + ( y * P2)) % n;
 
 }
 
@@ -119,7 +137,7 @@ glm::vec2 HashTable::getCellPosition (glm::vec2& position)
 int HashTable::computeKey(glm::vec2& position)
 {
 	glm::vec2 cellPos = getCellPosition(position);
-	int key = tableHash(cellPos);
+	unsigned int key = tableHash(cellPos);
 
 	return key;
 }

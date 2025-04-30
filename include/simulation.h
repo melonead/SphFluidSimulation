@@ -40,42 +40,27 @@ private:
     struct ParticlesInformation {
         std::vector<glm::vec2> positions;
         std::vector<float> densities;
-        std::vector<float> pressures;
-        std::vector<std::array<float, 2>> forces;
-        //std::vector<std::array<float, 2>> accelerations;
         std::vector<std::array<float, 2>> velocities;
-        //std::vector<std::vector<unsigned int>> neighbors;
 
     } particlesInfo;
 
     // The number of particles to be simulated
     
     float gravity {0.0f};
-    float SCR_WIDTH{ 600.0f };
-    float SCR_HEIGHT{ 600.0f };
 
     float aspect = SCR_WIDTH / SCR_HEIGHT;
 
     //glm::mat4 orthoMatrix = glm::ortho(0.0f, 1200.0f, 600.0f, 0.0f, -1.0f, 1.0f);
     glm::mat4 perspectiveMatrix = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
 
-    float pi = 3.145;
-    const float poly6Const = 315.0f / (64.0f * pi * pow(radiusOfInfluence, 9.0f));
-    const float spikyLap = 45.0f / (pi * pow(radiusOfInfluence, 6.0f));
-
     float maxSpeed{ 3.0f };
-    float damp{ -0.8f };
-    float idealDensity{ 50.0f };
-    float pressureMultiplier{ 1.0f };
+    float damp{ -0.96f };
+    float idealDensity{ 1000.0f };
     float mass{ 1.0f };
 
 
     unsigned int numberOfVertices = 6;
     Welol::RenderOperation particleRenderOperation{Welol::WL_TRIANGLES, numberOfVertices, 0, numParticles, true, false};
-
-    // container boundaries
-    glm::vec2 horizontalBoundaries = glm::vec2(-1.25f, 1.25f);
-    glm::vec2 verticalBoundaries = glm::vec2(-1.25f, 1.25f);
 
     /*
         The hash table enables fast search for particles withing the radius of influence
@@ -110,7 +95,9 @@ private:
     float getDistance(glm::vec2& pos1, glm::vec2& pos2);
 
     // poly6a: poly6 kernel
-    float poly6(float dist);
+    float poly6Kernel(float dist);
+
+    float cubicSplineKernel(float dist);
 
     // _max: return max of two value
     float _min(float a, float b);
@@ -118,37 +105,15 @@ private:
     // getPressure: return the pressure to be applied to a particle
     float getPressure(float d);
 
-    // avPressure: return the average pressure between 
-    // two particles
-    float avPressure(float a, float b);
-
-    // getPressureGradient: the pressure gradient kernel
-    float getPressureGradient(float dist);
-
-    // getViscGradient: the viscosity gradient kernel
-    float getViscGradient(float dist);
-
     // computeDensities: compute densities for all the particles
     void computeDensities();
 
-    // computeViscosity: calculate viscous force between two particles
-    /*
-    float computeViscosity(Particle& p, Particle& nb, float dist);
-
-    void interactWithMouse(
-        Particle&p,
-        glm::vec4 mousePos,
-        bool mouseClick[],
-        std::vector<Particle>(&Table)[NUMCELLS]
-    );
-    */
-    // computePressures: compute the pressure values of the particles
-    void computePressures();
 
     // compute pressure of a two neighboring particles
     float computePressureSingleParticle(
         float currentPressure,
         float neighborPressure,
+        float currentDensity,
         float neighborDensity,
         float dist
     );
@@ -156,10 +121,5 @@ private:
     // computeFroces: calculate the total force acting on a particles
     // this force will be used to compute acceleration -> velocity -> position
     void computeForces();
-
-    // LeapFrogIntegration: integrate particle's position and velocity
-    void LeapFrogIntegration(float deltaTime);
-
-
 
 };
