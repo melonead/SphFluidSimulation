@@ -56,7 +56,7 @@ private:
     float maxSpeed{ 3.0f };
     float damp{ -0.96f };
     float idealDensity{ 1000.0f };
-    float mass{ 1.0f };
+    float mass{ 0.1f };
 
 
     unsigned int numberOfVertices = 6;
@@ -99,6 +99,8 @@ private:
 
     float cubicSplineKernel(float dist);
     float spikyKernel(float dist);
+    float quadraticSpkikyKernel(float dist);
+    float cubicSpikyKernel(float dist);
 
     // _max: return max of two value
     float _min(float a, float b);

@@ -194,28 +194,36 @@ void Simulation::computeForces()
                     vec.x = (float)std::rand() / (float)std::rand();
                     vec.y = (float)std::rand() / (float)std::rand();
                 }
+
+                //std::cout << nearDensity << std::endl;
                 // Compute pressure field
                 float pressNeig = getPressure(particlesInfo.densities[neighborID]);
                 float PressCurr = getPressure(particlesInfo.densities[i]);
                 float densNeig = particlesInfo.densities[neighborID];
                 float densCurr = particlesInfo.densities[i];
                 pressureDensityFieldValue += computePressureSingleParticle(PressCurr, pressNeig, densCurr, densNeig, dist);
-                //std::cout << "v: " << pressureDensityFieldValue << std::endl;
 
-                forceFieldX += (vec.x/dist) * pressureDensityFieldValue;
-                forceFieldY += (vec.y/dist) * pressureDensityFieldValue;
+                // Prevent clustering by applying a force inverse propertional to distance between particles.
+                // The smaller the distance the higher the force
+                particlesInfo.velocities[i][0] += (-vec.x/dist) * (1.0f - dist/radiusOfInfluence) * -pressureConstant;
+                particlesInfo.velocities[i][1] += (-vec.y/dist) * (1.0f - dist/radiusOfInfluence) * -pressureConstant;
+
+                particlesInfo.velocities[neighborID][0] += (vec.x/dist) * (1.0f - dist/radiusOfInfluence) * -pressureConstant;
+                particlesInfo.velocities[neighborID][1] += (vec.y/dist) * (1.0f - dist/radiusOfInfluence) * -pressureConstant;
+
+                forceFieldX += (vec.x/dist) * (pressureDensityFieldValue);
+                forceFieldY += (vec.y/dist) * (pressureDensityFieldValue);
             }
         }
 
         // Compute acceleration
-      
-        float accX = -forceFieldX / particlesInfo.densities[i];
-        float accY = -forceFieldY / particlesInfo.densities[i];
+        float accX = (-forceFieldX)  / particlesInfo.densities[i];
+        float accY = (-forceFieldY)  / particlesInfo.densities[i];
         // Compute velocity 
         // REVISIT: temporary 
         particlesInfo.velocities[i][0] += accX * deltaTime;
         particlesInfo.velocities[i][1] += accY * deltaTime;
-        //particlesInfo.velocities[i][1] += (-9.8f * deltaTime);
+        particlesInfo.velocities[i][1] += (-9.8f * deltaTime);
 
         // std::cout << "velx: " << accX << std::endl;
         // std::cout << "vely: " << accY << std::endl;
@@ -286,8 +294,8 @@ float Simulation::computePressureSingleParticle(
     float dist
 )
 {
-    float symm = (currentPressure + neighborPressure) / 2.0f;
-    return mass * symm * cubicSplineKernel(dist);
+    float symm = (currentPressure + neighborPressure) / (2.0f * neighborDensity);
+    return mass * symm * cubicSpikyKernel(dist);
 }
 
 // convert world coordinate to the screen space coordinate
@@ -351,4 +359,14 @@ float Simulation::spikyKernel(float dist)
     float a = 15.0f / (PI * powf(radiusOfInfluence, 6.0f));
     float b = powf((radiusOfInfluence - dist), 3.0f);
     return a * b;
+}
+
+float Simulation::quadraticSpkikyKernel(float dist)
+{
+    return powf(1.0f - (dist / radiusOfInfluence), 2.0f);
+}
+
+float Simulation::cubicSpikyKernel(float dist)
+{
+    return powf(1.0f - (dist / radiusOfInfluence), 3.0f);
 }
