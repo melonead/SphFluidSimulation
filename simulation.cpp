@@ -63,15 +63,16 @@ void Simulation::update(Welol::Renderer& glRenderer, glm::mat4& view, float dt) 
     computeForces();
 
 
-    glm::vec2 particlePos = particlesInfo.positions[55];
-    NeighborQuery nQuery = table.getNeighborIDs(particlePos);
-
-
+    
+    
     updateRendering(glRenderer, view, perspectiveMatrix);
     vis.drawGrid(glRenderer, view, perspectiveMatrix);
-
+    
+    
+    /*
+    glm::vec2 particlePos = particlesInfo.positions[55];
     vis.drawCircle(particlePos.x, particlePos.y, radiusOfInfluence, view, perspectiveMatrix, glRenderer);
-
+    NeighborQuery nQuery = table.getNeighborIDs(particlePos);
     for (unsigned int i = 0; i < nQuery.size; i++)
     {
         glm::vec2 p = particlesInfo.positions[nQuery.neighborBucket[i]];
@@ -79,6 +80,7 @@ void Simulation::update(Welol::Renderer& glRenderer, glm::mat4& view, float dt) 
         //if (dist < radiusOfInfluence)
         vis.drawCircle(p.x, p.y, 0.05f, view, perspectiveMatrix, glRenderer);
     }
+    */
 
     table.createTable(particlesInfo.positions);
 }
@@ -141,6 +143,12 @@ void Simulation::computeDensities()
                 continue;
             dist = getDistance(particlesInfo.positions[i], particlesInfo.positions[neighborID]);
 
+            /*
+                Distance can be zero.
+            */
+            if (dist <= 0.0f)
+                continue;
+
             if (dist <= radiusOfInfluence) {
                    
                 density += mass * cubicSplineKernel(dist);
@@ -174,11 +182,18 @@ void Simulation::computeForces()
                 continue;
 
             dist = getDistance(particlesInfo.positions[i], particlesInfo.positions[neighborID]);
-
-
-
-            if (dist <= radiusOfInfluence) 
-            {
+            /*
+                Distance can be zero. Is there a way for C++ say we are dividing by zero?
+            */
+           
+           if (dist <= radiusOfInfluence) 
+           {
+               glm::vec2 vec = particlesInfo.positions[neighborID] - particlesInfo.positions[i];
+                if (dist <= 0.0f)
+                {
+                    vec.x = (float)std::rand() / (float)std::rand();
+                    vec.y = (float)std::rand() / (float)std::rand();
+                }
                 // Compute pressure field
                 float pressNeig = getPressure(particlesInfo.densities[neighborID]);
                 float PressCurr = getPressure(particlesInfo.densities[i]);
@@ -186,7 +201,6 @@ void Simulation::computeForces()
                 float densCurr = particlesInfo.densities[i];
                 pressureDensityFieldValue += computePressureSingleParticle(PressCurr, pressNeig, densCurr, densNeig, dist);
                 //std::cout << "v: " << pressureDensityFieldValue << std::endl;
-                glm::vec2 vec = particlesInfo.positions[neighborID] - particlesInfo.positions[i];
 
                 forceFieldX += (vec.x/dist) * pressureDensityFieldValue;
                 forceFieldY += (vec.y/dist) * pressureDensityFieldValue;
@@ -201,20 +215,34 @@ void Simulation::computeForces()
         // REVISIT: temporary 
         particlesInfo.velocities[i][0] += accX * deltaTime;
         particlesInfo.velocities[i][1] += accY * deltaTime;
-        //particlesInfo.velocities[i][1] += (-9.8f * deltaTime) ;
+        //particlesInfo.velocities[i][1] += (-9.8f * deltaTime);
 
+        // std::cout << "velx: " << accX << std::endl;
+        // std::cout << "vely: " << accY << std::endl;
 
         // --------------------------------------------------------------------------------------------------------------
 
         float boundaryX = cellSize * table.getHorizontalCellsCount() * 0.5f;
         float boundaryY = cellSize * table.getVerticalCellCount() * 0.5f;
-    
+        
+        // clamp velocity
         if (particlesInfo.velocities[i][0] > maxSpeed) {
             particlesInfo.velocities[i][0] = maxSpeed;
         }
         else if (particlesInfo.velocities[i][0] < -maxSpeed) {
             particlesInfo.velocities[i][0] = -maxSpeed;
         }
+
+        if (particlesInfo.velocities[i][1] > maxSpeed) {
+            particlesInfo.velocities[i][1] = maxSpeed;
+        }
+        else if (particlesInfo.velocities[i][1] < -maxSpeed) {
+            particlesInfo.velocities[i][1] = -maxSpeed;
+        }
+        
+
+
+
         particlesInfo.positions[i].x += (particlesInfo.velocities[i][0] * deltaTime);
         //p.predictedPosition[0] = particlesInfo.positions[i].x + particlesInfo.velocities[i][0] * deltaTime;
 
@@ -231,12 +259,7 @@ void Simulation::computeForces()
             particlesInfo.positions[i].x -= eps;
         }
 
-        if (particlesInfo.velocities[i][1] > maxSpeed) {
-            particlesInfo.velocities[i][1] = maxSpeed;
-        }
-        else if (particlesInfo.velocities[i][1] < -maxSpeed) {
-            particlesInfo.velocities[i][1] = -maxSpeed;
-        }
+        
         particlesInfo.positions[i].y += (particlesInfo.velocities[i][1] * deltaTime);
         //p.predictedPosition[1] = particlesInfo.positions[i].y + particlesInfo.velocities[i][1] * deltaTime;
 
@@ -263,7 +286,7 @@ float Simulation::computePressureSingleParticle(
     float dist
 )
 {
-    float symm = (currentPressure/currentDensity + neighborPressure/currentDensity);
+    float symm = (currentPressure + neighborPressure) / 2.0f;
     return mass * symm * cubicSplineKernel(dist);
 }
 
@@ -302,7 +325,7 @@ float Simulation::_min(float a, float b)
 float Simulation::getPressure(float d)
 {	
     float v = pressureConstant * (d - idealDensity);
-    return std::max(v, 0.0f);
+    return v;
 }
 
 float Simulation::poly6Kernel(float dist)
@@ -315,10 +338,17 @@ float Simulation::poly6Kernel(float dist)
 float Simulation::cubicSplineKernel(float dist)
 {
     float q = (1.0f / radiusOfInfluence) * dist;
-    float a = (40.0f / (7 * PI * powf(radiusOfInfluence, 2.0f)));
+    float a = (40.0f / (7.0f * PI * powf(radiusOfInfluence, 2.0f)));
 
     if (q <= 0.5f)
         return a * (6.0f * (powf(q, 3.0f) - powf(q, 2.0f)) + 1.0f);
     else 
         return a * (2.0f * powf((1.0f - q), 3.0f));
+}
+
+float Simulation::spikyKernel(float dist)
+{
+    float a = 15.0f / (PI * powf(radiusOfInfluence, 6.0f));
+    float b = powf((radiusOfInfluence - dist), 3.0f);
+    return a * b;
 }

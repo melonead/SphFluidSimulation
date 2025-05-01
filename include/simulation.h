@@ -98,6 +98,7 @@ private:
     float poly6Kernel(float dist);
 
     float cubicSplineKernel(float dist);
+    float spikyKernel(float dist);
 
     // _max: return max of two value
     float _min(float a, float b);
