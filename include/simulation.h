@@ -10,6 +10,7 @@
 #include "Camera.h"
 #include "visualization.h"
 #include "sharedVariables.h"
+#include "Input.h"
 
 /*
     Simulation brings manages the whole simulation
@@ -18,7 +19,7 @@ class Simulation {
 public:
     Simulation(Shader& circleShaderProgram, Welol::Renderer& glRenderer);
     ~Simulation();
-    void update(Welol::Renderer& glRenderer, glm::mat4& view, float dt);
+    void update(Welol::Renderer& glRenderer, glm::mat4& view, float dt, MouseInfo& mouseInfo);
 private:
     /*
         Information used by OpenGl to render the particles.
@@ -39,6 +40,7 @@ private:
     */
     struct ParticlesInformation {
         std::vector<glm::vec2> positions;
+        std::vector<glm::vec2> predictedPositions;
         std::vector<float> densities;
         std::vector<std::array<float, 2>> velocities;
 
@@ -68,6 +70,8 @@ private:
     */
     HashTable table{ numParticles};
 
+    glm::vec2 mouseWorldPosition;
+
 
     /*
         setUpRendering prepares for the rendering of the particles.
@@ -76,10 +80,6 @@ private:
     Shader shaderProg;
     void setUpRendering(Welol::Renderer& glRenderer);
     void updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, glm::mat4& projection);
-    glm::vec2 worldToScreen(glm::vec2& position, glm::mat4& view);
-    glm::vec4 ndcToWorld(glm::vec4& vec, glm::mat4& view, glm::mat4& projection);
-
-
     /*
         Visualization of the hash table
     */
@@ -87,6 +87,8 @@ private:
     Visualization vis;
 
 
+
+    void updatePosition(unsigned int i);
     /*
         Smoothed Particle Hydrodynamics related functions
     */
@@ -101,6 +103,9 @@ private:
     float spikyKernel(float dist);
     float quadraticSpkikyKernel(float dist);
     float cubicSpikyKernel(float dist);
+    float viscosityLaplacian(float dist);
+
+    glm::vec2 getMouseWorldCoords(float mouseX, float mouseY);
 
     // _max: return max of two value
     float _min(float a, float b);
@@ -121,8 +126,17 @@ private:
         float dist
     );
 
+    glm::vec2 computeViscosity(std::array<float, 2>& velCurr, std::array<float, 2>& velNeig, float densNeig, float dist);
+
     // computeFroces: calculate the total force acting on a particles
     // this force will be used to compute acceleration -> velocity -> position
-    void computeForces();
+    void computeForces(MouseInfo& mouseInfo);
 
+    void _setMousePosition(float x, float y, glm::mat4& view);
+
+    glm::vec2 screenToNdc(float X, float Y);
+
+    glm::vec2 ndcToWorld(float X, float Y, glm::mat4& view);
+
+    void mouseInteraction(MouseInfo& mouseInfo, unsigned int ID);
 };

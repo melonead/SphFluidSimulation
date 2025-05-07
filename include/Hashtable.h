@@ -15,6 +15,7 @@ struct NeighborQuery
 {
 	std::vector<unsigned int> neighborBucket;
 	unsigned int size{0};
+
 };
 
 
@@ -28,14 +29,14 @@ public:
 		Get the IDs of all the neighboring particles.
 	*/
 
-	NeighborQuery getNeighborIDs(glm::vec2& position);
+	NeighborQuery& getNeighborIDs(glm::vec2& position);
+
+	NeighborQuery& getNeighborIDsForMouse(glm::vec2& position, float radius);
 	
 
 	void createTable(std::vector<glm::vec2>& positions);
 	
 	float getCellSize() {return cellSize; };
-	unsigned int getHorizontalCellsCount() {return boundedTableInfo.horizontalCellsCount; };
-	unsigned int getVerticalCellCount() {return boundedTableInfo.verticalCellsCount; };
 	
 private:
 	/*
@@ -49,14 +50,10 @@ private:
 	*/
 	const int P1 = 73856093;
 	const int P2 = 19349663;
+
+	unsigned int numberOfCells;
 	
 	int numParticles;
-
-	struct 
-	{
-		unsigned int horizontalCellsCount{40};
-		unsigned int verticalCellsCount{40};
-	} boundedTableInfo;
 	
 	/*
 	Particle IDs, these do not change throught out the simulation.
@@ -82,6 +79,7 @@ private:
 	std::vector<unsigned int> particleCounts;
 
 	NeighborQuery query;
+	NeighborQuery mouseQuery;
 
 	
 

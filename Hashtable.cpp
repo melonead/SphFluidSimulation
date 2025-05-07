@@ -10,14 +10,14 @@ HashTable::HashTable(unsigned int numberOfParticles)
 	: numParticles(numberOfParticles)
 
 {
-	unsigned numCells = getHorizontalCellsCount() * getVerticalCellCount();
+	numberOfCells = (containerWidth / cellSize) * (containerHeight / cellSize);
 
 	// Add an extra cell so that we don't index outside the array while computing
 	// partial sums.
-	grid = std::vector<unsigned int>(numCells + 1, 0);
+	grid = std::vector<unsigned int>(numberOfCells + 1, 0);
 	particleIDs = std::vector<unsigned int>(numberOfParticles, 0);
 	sortedParticleIDs = std::vector<unsigned int>(numberOfParticles, 0);
-	particleCounts = std::vector<unsigned int>(numCells, 0);
+	particleCounts = std::vector<unsigned int>(numberOfCells, 0);
 
 	// create particles IDs
 	for (unsigned int i = 0; i < numberOfParticles; i++)
@@ -28,13 +28,16 @@ HashTable::HashTable(unsigned int numberOfParticles)
 	query.neighborBucket.reserve(72);
 	query.neighborBucket.resize(72);
 
-	std::cout << query.neighborBucket.size() << std::endl;
+	mouseQuery.neighborBucket.reserve(144);
+	mouseQuery.neighborBucket.resize(144);
+
+
 
 }
 
 
 
-NeighborQuery HashTable::getNeighborIDs(glm::vec2& position)
+NeighborQuery& HashTable::getNeighborIDs(glm::vec2& position)
 {
 	// REVISIT: Perhaps make this a member variable?
 	unsigned int neighborCellsCount = 9;
@@ -44,20 +47,21 @@ NeighborQuery HashTable::getNeighborIDs(glm::vec2& position)
 
 	glm::vec2 currentCellPos = getCellPosition(position);
 	glm::vec2 neighborCellPos;
+	glm::vec2 pos;
 	unsigned int key;
 	for (unsigned int i = 0; i < neighborCellsCount; i++) {
 		// REVISIT: Do the cell displacements need to be scaled by
 		// the cell size?
-		neighborCellPos.x = currentCellPos.x + cellDisplacements[i][0];
-		neighborCellPos.y = currentCellPos.y + cellDisplacements[i][1];
+
+		pos.x = position.x + cellDisplacements[i][0] * cellSize;
+		pos.y = position.y + cellDisplacements[i][1] * cellSize;
+		neighborCellPos = getCellPosition(pos);
 		key = tableHash(neighborCellPos);
 		// Go to table and find where to start looking
 		unsigned int start = grid[key];
 		// Go to particleCount and find how much to advance start at start
 		unsigned int size = particleCounts[key];
-		// std::cout << "cell size: " << size << std::endl;
 
-		//std::cout << "query.size: " << query.size << std::endl;
 		for (unsigned int i = 0; i < size; i++)
 		{
 			unsigned int id = sortedParticleIDs[start + i];
@@ -75,12 +79,67 @@ NeighborQuery HashTable::getNeighborIDs(glm::vec2& position)
 	return query;
 }
 
+
+
+NeighborQuery& HashTable::getNeighborIDsForMouse(glm::vec2& position, float radius)
+{
+	float startX = 0.0f;
+	float startY = 0.0f;
+
+	unsigned int boundingWidth = 9;
+	mouseQuery.size = 0;
+
+	glm::vec2 pos;
+	glm::vec2 cellPos;
+	// std::cout << "---------------------------------------------------------------------" << std::endl;
+	for (unsigned int y = 0; y < boundingWidth; y++)
+	{
+		for (unsigned int x = 0; x < boundingWidth; x++)
+		{
+
+			pos.x = position.x + x * cellSize;
+			pos.y = position.y + y * cellSize;
+
+			//std::cout << "x: " << pos.x << " y: " << pos.y << std::endl;
+			
+			cellPos = getCellPosition(pos);
+
+			unsigned int key = computeKey(cellPos);
+
+
+			// Go to table and find where to start looking
+			unsigned int start = grid[key];
+			// Go to particleCount and find how much to advance start at start
+			unsigned int size = particleCounts[key];
+
+			for (unsigned int k = 0; k < size; k++)
+			{
+				unsigned int id = sortedParticleIDs[start + k];
+
+				if (mouseQuery.size >= mouseQuery.neighborBucket.size())
+				{
+					mouseQuery.neighborBucket.resize(mouseQuery.size + 10);
+				}
+
+				mouseQuery.neighborBucket[mouseQuery.size] = id;
+				mouseQuery.size += 1;
+			}
+
+
+		}
+	}
+	return mouseQuery;
+}
+
+
+
+
+
 void HashTable::createTable(std::vector<glm::vec2>& positions)
 {
 	// REVISIT: Is there another way to make all the values zeros
-	unsigned int cellsNumber = getVerticalCellCount() * getHorizontalCellsCount();
-	grid = std::vector<unsigned int>(cellsNumber + 1, 0);
-	particleCounts = std::vector<unsigned int>(cellsNumber, 0);
+	grid = std::vector<unsigned int>(numberOfCells + 1, 0);
+	particleCounts = std::vector<unsigned int>(numberOfCells, 0);
 	unsigned int numParticles = positions.size();
 	// Compute cell particle count
 	for(unsigned int i = 0; i < numParticles; i++)
@@ -94,7 +153,7 @@ void HashTable::createTable(std::vector<glm::vec2>& positions)
 	}
 	// compute partial sums
 	int k = 0;
-	for(unsigned int i = 0; i < cellsNumber; i++)
+	for(unsigned int i = 0; i < numberOfCells; i++)
 	{
 		grid[i + 1]  += grid[i];
 	}
@@ -119,7 +178,7 @@ int HashTable::tableHash(glm::vec2& cellPos)
 	int x = cellPos.x;
 	int y = cellPos.y;
 
-	int n = (getHorizontalCellsCount() * getVerticalCellCount());
+	int n = numberOfCells;
 
 	return abs((x * P1) + ( y * P2)) % n;
 

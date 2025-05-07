@@ -13,18 +13,18 @@ public:
         float containerHeight,
         float containerPosX,
         float containerPosY,
-        Welol::Renderer& renderer
+        Welol::Renderer& rend
     )
         : cSize(cellSize)
     {
-
+        setRenderer(rend);
         /*
             Grid render operation set up.
         */
 
         std::vector<float> verticalLine = {
             -containerPosX, containerPosY, 0.0f,
-            -containerPosX, containerPosY - containerWidth, 0.0f,
+            -containerPosX, containerPosY - containerHeight, 0.0f,
         };
 
         std::vector<float> horizontalLine = {
@@ -33,9 +33,12 @@ public:
         };
 
         unsigned int numberOfVerticesPerLine = 2;
+
         gridInfo.numberOfLines = (int) (containerWidth / cellSize) + (containerHeight / cellSize);
+        gridInfo.verticalLines = (int) (containerWidth / cellSize);
+
         
-        Grid = Welol::RenderOperation(Welol::WL_LINES, numberOfVerticesPerLine, 0, gridInfo.numberOfLines, true, false);
+        Grid = Welol::RenderOperation(Welol::WL_LINES, numberOfVerticesPerLine, 0, gridInfo.numberOfLines + 1, true, false);
         Welol::VertexAttribute verticalLinesAtt{0, Welol::WL_FLOAT3, verticalLine.data(), numberOfVerticesPerLine, false};
         Welol::VertexAttribute horizontalLineAtt{ 1, Welol::WL_FLOAT3, horizontalLine.data(), numberOfVerticesPerLine, false };
         Grid.addVertexAttribute(verticalLinesAtt);
@@ -58,59 +61,127 @@ public:
             0.05f, 0.05f
         };
 
-        Welol::VertexAttribute quadPositions{Welol::WL_TRIANGLES, Welol::WL_FLOAT2, quadVertices.data(), 6, false};
+        std::vector<float> quadLoopVertices = {
+            -0.05f, 0.05f, 
+            0.05f, 0.05f,
+            0.05f,-0.05f, 
+            -0.05f,-0.05f
+        };
+
+        Welol::VertexAttribute quadPositions{0, Welol::WL_FLOAT2, quadVertices.data(), 6, false};
         Circle.addVertexAttribute(quadPositions);
         renderer.initializeRenderOperation(Circle);
 
+        
         // circle shader
         std::string circleVertexShaderPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\FluidSim\\shaders\\circleVertex.glsl";
         std::string circleFragmentShaderPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\FluidSim\\shaders\\circleFragment.glsl";
-
+        
         circleShader = Shader{circleVertexShaderPath, circleFragmentShaderPath};
+
+        std::vector<float> quadVertices1 = {
+            -0.05f, 0.05f, 
+            0.05f,-0.05f, 
+            -0.05f,-0.05f, 
+            -0.05f, 0.05f, 
+            0.05f,-0.05f, 
+            0.05f, 0.05f
+        };
+        
+        Welol::VertexAttribute quadLoopPositions{0, Welol::WL_FLOAT2, quadLoopVertices.data(), 4, false};
+        Rectangle.addVertexAttribute(quadLoopPositions);
+        renderer.initializeRenderOperation(Rectangle);
+
+        // circle shader
+        std::string rectVertexShaderPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\FluidSim\\shaders\\rectangleVertex.glsl";
+        std::string rectFragmentShaderPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\FluidSim\\shaders\\rectangleFragment.glsl";
+
+        rectangleShader = Shader{rectVertexShaderPath, rectFragmentShaderPath};
     }
 
     /*
         The grid represents the hash table.
     */
-    void drawGrid(Welol::Renderer& renderer, glm::mat4& view, glm::mat4& projection)
+    void drawGrid(Welol::Renderer& renderer)
     {
         gridShader.use();
-        gridShader.setMatrix4fv("view", view);
-        gridShader.setMatrix4fv("projection", projection);
+        gridShader.setMatrix4fv("view", viewMatrix);
+        gridShader.setMatrix4fv("projection", perspectiveMatrix);
         gridShader.setFloat("lineSpacing", cSize);
         gridShader.setInt("numberOfLines", gridInfo.numberOfLines);
+        gridShader.setInt("numberOfVerticalLines", gridInfo.verticalLines);
 
         renderer.render(Grid);
     }
 
-    /*
-        Draw the container containing the fluid.
-    */
-    void drawContainer()
+    void drawRectangle(float x, float y, float width, float height)
     {
+        
+        float quadWidth = 0.05f;
+        float scaleX = (width * 0.5f) / quadWidth;
+        float scaleY = (height * 0.5f) / quadWidth;
+        
+        rectModel = glm::translate(glm::mat4(1.0f), glm::vec3(x + (width * 0.5f), y - (height * 0.5f), 0.0f));
+        rectModel = glm::scale(rectModel, glm::vec3(scaleX, scaleY, 1.0f));
 
+        rectangleShader.use();
+        rectangleShader.setMatrix4fv("view", viewMatrix);
+        rectangleShader.setMatrix4fv("projection", perspectiveMatrix);
+        rectangleShader.setMatrix4fv("model", rectModel);
+  
+        renderer.render(Rectangle);
     }
 
-    void drawCircle(float x, float y, float radius, glm::mat4& view, glm::mat4& projection, Welol::Renderer& renderer)
+    void drawCircle(float x, float y, float radius)
     {
+        float quadWidth = 0.05f;
+        float scale = radius / quadWidth;
+
+        circleModel = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f));
+        circleModel = glm::scale(circleModel, glm::vec3(scale, scale, 1.0f));
         circleShader.use();
-        circleShader.setMatrix4fv("view", view);
-        circleShader.setMatrix4fv("projection", projection);
+        circleShader.setMatrix4fv("view", viewMatrix);
+        circleShader.setMatrix4fv("projection", perspectiveMatrix);
+        circleShader.setMatrix4fv("model", circleModel);
         circleShader.setFloat("radius", radius);
         circleShader.setFloat("x", x);
         circleShader.setFloat("y", y);
         renderer.render(Circle);
     }
 
+    void setPerspectiveMatrix(glm::mat4& matrix)
+    {
+        perspectiveMatrix = matrix;
+    }
+
+    void setViewMatrix(glm::mat4& matrix)
+    {
+        viewMatrix = matrix;
+    }
+
+    void setRenderer(Welol::Renderer& rend)
+    {
+        renderer = rend;
+    }
+
 private:
     float cSize;
     unsigned int maxCircles {20};
     Welol::RenderOperation Circle{Welol::WL_TRIANGLES, 6, 0, maxCircles, true, false};
+    Welol::RenderOperation Rectangle{Welol::WL_LINE_LOOP, 4, 0, maxCircles, false, false};
     Welol::RenderOperation Grid;
     Shader gridShader;
     Shader circleShader;
+    Shader rectangleShader;
+    glm::mat4 rectModel{1.0f};
+    glm::mat4 circleModel{1.0f};
+    glm::mat4 perspectiveMatrix;
+    glm::mat4 viewMatrix;
+    Welol::Renderer renderer;
+
 
     struct {
         int numberOfLines{0};
+        int verticalLines{0};
     } gridInfo;
 };

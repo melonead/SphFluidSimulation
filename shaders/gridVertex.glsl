@@ -9,11 +9,12 @@ uniform mat4 view;
 
 uniform float lineSpacing;
 uniform int numberOfLines;
+uniform int numberOfVerticalLines;
 
 void main()
 {	
 	int halfOfLinesCount = numberOfLines/2;
-	if (gl_InstanceID < halfOfLinesCount)
+	if (gl_InstanceID < (numberOfVerticalLines + 1))
 	{
         // vertical lines
         // Why is my camera left-handed? left axis seems to increase towards the left.
@@ -21,7 +22,7 @@ void main()
 	}
 	else {
         // horizontal lines
-		gl_Position = projection * view * vec4(horizontalLine.x , horizontalLine.y - (gl_InstanceID-halfOfLinesCount) * lineSpacing, horizontalLine.z, 1.0);
+		gl_Position = projection * view * vec4(horizontalLine.x , horizontalLine.y - (gl_InstanceID-numberOfVerticalLines) * lineSpacing, horizontalLine.z, 1.0);
 	}
 	
 }

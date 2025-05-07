@@ -17,6 +17,7 @@
 #include "Renderer.h"
 #include "Camera.h"
 #include "sharedVariables.h"
+#include "Input.h"
 // #include <SOIL2/SOIL2.h>
 
 
@@ -35,6 +36,8 @@ float yaw = 0.0f;
 bool firstMouse = true;
 bool forwardCamera = false;
 float cameraScrollDirection = 1.0f;
+
+MouseInfo mouseInfo;
 
 
 int main()
@@ -70,6 +73,8 @@ int main()
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
     glfwSetScrollCallback(window, mouse_scroll_callback);
+    glfwSetFramebufferSizeCallback(window, window_reshape_callback);
+
 
     // glad: load all OpenGL function pointers
     // ---------------------------------------
@@ -118,7 +123,7 @@ int main()
     Simulation simulation{particleShaderProgram, glRenderer};
 
 
-    Welol::Camera* camera = new Welol::Camera(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+    Welol::Camera* camera = new Welol::Camera(glm::vec3(0.0f, 0.0f, 30.0f), glm::vec3(0.0f, 0.0f, 0.0f));
     bool rotateCamera = false;
 
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -127,7 +132,7 @@ int main()
     {
 
 
-        glClearColor(0.2f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         processInput(window, rotateCamera);
 
@@ -149,16 +154,16 @@ int main()
         
         if (rotateCamera)
         {
-            camera->update(cameraScrollDirection, yaw, pitch, lastX, lastY, forwardCamera);
+            camera->update(cameraScrollDirection, yaw, pitch, mouseInfo.positionX, mouseInfo.positionY, forwardCamera);
         } else{
-            camera->setLastMousePos(lastX, lastY);
+            camera->setLastMousePos(mouseInfo.positionX, mouseInfo.positionY);
         }
         if (forwardCamera)
         camera->moveForward(cameraScrollDirection);
         forwardCamera = false;
 
+        simulation.update(glRenderer, camera->getViewMatrix(), (float) deltaTime, mouseInfo);
 
-        simulation.update(glRenderer, camera->getViewMatrix(), (float) deltaTime);
 
 
         glfwSwapBuffers(window);
@@ -213,6 +218,26 @@ void processInput(GLFWwindow* window, bool& rotateCamera)
         rotateCamera = false;
     }
 
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1) == GLFW_PRESS)
+    {
+        mouseInfo.leftButton = true;
+    }
+
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1) == GLFW_RELEASE)
+    {
+        mouseInfo.leftButton = false;
+    }
+
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2) == GLFW_PRESS)
+    {
+        mouseInfo.rightButton = true;
+    }
+
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2) == GLFW_RELEASE)
+    {
+        mouseInfo.rightButton = false;
+    }
+
 }
 
 
@@ -232,8 +257,10 @@ void mouse_callback(GLFWwindow* window,double xpos,double ypos)
         yaw = 0.0f;
     if (abs(pitch) < 2.5f)
         pitch = 0.0f;
-    lastX = xpos;
-    lastY = ypos;
+
+    mouseInfo.positionX = xpos;
+    mouseInfo.positionY = ypos;
+
     float yawSensitivity = 0.005f;
     float pitchSensitivity = 0.005f;
     yaw   *= yawSensitivity;
