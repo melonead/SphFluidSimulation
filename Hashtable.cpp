@@ -42,7 +42,6 @@ NeighborQuery& HashTable::getNeighborIDs(glm::vec2& position)
 	// REVISIT: Perhaps make this a member variable?
 	unsigned int neighborCellsCount = 9;
 
-
 	query.size = 0;
 
 	glm::vec2 currentCellPos = getCellPosition(position);

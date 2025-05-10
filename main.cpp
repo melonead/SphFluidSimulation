@@ -128,6 +128,8 @@ int main()
 
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
+    //Text text{glRenderer};
+
     while (!glfwWindowShouldClose(window))
     {
 
@@ -164,6 +166,7 @@ int main()
 
         simulation.update(glRenderer, camera->getViewMatrix(), (float) deltaTime, mouseInfo);
 
+        //text.render("text", 20.0f, 20.0f, 2.0f, glm::vec3(1.0f, 0.0f, 0.0f), glRenderer);
 
 
         glfwSwapBuffers(window);

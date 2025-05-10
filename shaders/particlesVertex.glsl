@@ -6,13 +6,21 @@ layout (location=1) in vec2 quadVertices;
 
 out vec2 fragPosition;
 out vec2 center;
+out float fragRadius;
 
+uniform float radius;
 uniform mat4 view;
 uniform mat4 projection;
+uniform mat4 model;
+
+vec4 worldPosition;
 
 void main()
 {
+    worldPosition = vec4(position, 0.0, 0.0) + model * vec4(quadVertices, 0.0, 1.0);
+    gl_Position = projection * view * worldPosition;
+
     center = position;
-    fragPosition = position + quadVertices;
-    gl_Position = projection * view * vec4(quadVertices + position, 0.0, 1.0);
+    fragPosition = worldPosition.xy;
+    fragRadius = radius;
 }

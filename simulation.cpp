@@ -24,11 +24,13 @@ Simulation::Simulation(Shader& circleShaderProgram, Welol::Renderer& glRenderer)
     particlesInfo.densities.resize(numParticles);
     particlesInfo.velocities = std::vector<std::array<float, 2>>(numParticles);
 
-    for (unsigned int i = 0; i < particlesInfo.velocities.size(); i++)
+    for (unsigned int i = 0; i < numParticles; i++)
     {
         particlesInfo.velocities[i][0] = 0.0f;
         particlesInfo.velocities[i][1] = 0.0f;
+
     }
+
 
     for (int y = 0; y < size; y++)
     {
@@ -70,9 +72,10 @@ void Simulation::update(Welol::Renderer& glRenderer, glm::mat4& view, float dt, 
     //vis.drawGrid(glRenderer, view, perspectiveMatrix);
     updateRendering(glRenderer, view, perspectiveMatrix);
 
-    vis.drawCircle(particlesInfo.positions[0].x, particlesInfo.positions[0].y, radiusOfInfluence);
-    vis.drawCircle(0.0f, 0.0f, radiusOfInfluence * 10.0f);
-    vis.drawRectangle(-containerWidth / 2.0f, containerHeight / 2.0f, containerWidth, containerHeight);
+    //vis.drawCircle(particlesInfo.positions[0].x, particlesInfo.positions[0].y, radiusOfInfluence);
+    //vis.drawCircle(0.0f, 0.0f, radiusOfInfluence * 10.0f);
+    //vis.drawRectangle(-containerWidth / 2.0f, containerHeight / 2.0f, containerWidth, containerHeight);
+    vis.drawRectangle(0.0f, 0.0f, containerWidth, containerHeight);
     
 
     table.createTable(particlesInfo.positions);
@@ -111,6 +114,8 @@ void Simulation::updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, g
 
     shaderProg.setMatrix4fv("view", view);
     shaderProg.setMatrix4fv("projection", projection);
+    shaderProg.setMatrix4fv("model", particleModelMatrix);
+    shaderProg.setFloat("radius", particleRadius);
     glRenderer.updateRenderOperationVertexAttribute(particleRenderOperation, 0, 0, particlesInfo.positions.data());
 }
 
@@ -121,11 +126,15 @@ void Simulation::computeDensities()
     
     for (int i = 0; i < numParticles; i++)
     {
+        // compute predicted positions.
+        particlesInfo.predictedPositions[i].x = particlesInfo.positions[i].x + particlesInfo.velocities[i][0] * deltaTime;
+        particlesInfo.predictedPositions[i].y = particlesInfo.positions[i].y + particlesInfo.velocities[i][1] * deltaTime;
+
         float dist = 0.0f;
         //int nbSize = particlesInfo.neighbors[i].size();
         float density = 1.0f;
 
-        NeighborQuery& nQuery = table.getNeighborIDs(particlesInfo.predictedPositions[i]);
+        NeighborQuery& nQuery = table.getNeighborIDs(particlesInfo.positions[i]);
         
         unsigned int neighborID;
         // std::cout << "bucket size: " << nQuery.size << std::endl;
@@ -147,7 +156,7 @@ void Simulation::computeDensities()
                 density += mass * cubicSplineKernel(dist);
             }
         }
-            
+        
         particlesInfo.densities[i] = density;
 
     }
@@ -168,6 +177,7 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
         float pressureForceFieldY = 0.0f;
         float viscosityForceFieldX = 0.0f;
         float viscosityForceFieldY = 0.0f;
+
         /*
             REVISIT: Is it faster to just use the sortedParticlesIDs directly rather than packing them in
             a new container?
@@ -204,15 +214,12 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
                 float densCurr = particlesInfo.densities[i];
                 
                 float pField = computePressureSingleParticle(PressCurr, pressNeig, densCurr, densNeig, dist);
-                pressureForceFieldX += (dir.x) * (pField);
-                pressureForceFieldY += (dir.y) * (pField);
+                pressureForceFieldX += dir.x * pField;
+                pressureForceFieldY += dir.y * pField;
 
                 glm::vec2 visField = computeViscosity(particlesInfo.velocities[i], particlesInfo.velocities[neighborID], particlesInfo.densities[neighborID], dist);
                 viscosityForceFieldX += (dir.x) * visField.x;
                 viscosityForceFieldY += (dir.y) * visField.y;
-
-                // viscosityForceFieldX += (dir.x) * (viscosityDensityFieldAccum);
-                // viscosityForceFieldY += (dir.y) * (viscosityDensityFieldAccum);
 
                 // Near Force.
                 // Prevent clustering by applying a (near) force inverse propertional to distance between particles.
@@ -239,9 +246,11 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
         float accY = (totalForceFieldY)  / particlesInfo.densities[i];
         // Compute velocity 
         // REVISIT: temporary 
-        particlesInfo.velocities[i][0] += accX * deltaTime;
-        particlesInfo.velocities[i][1] += accY * deltaTime;
-        particlesInfo.velocities[i][1] += (-9.8f * deltaTime);
+        float halfDeltaVelX = particlesInfo.velocities[i][0] - 0.5f * deltaTime * accX;
+        float halfDeltaVelY = particlesInfo.velocities[i][1] - 0.5f * deltaTime * accY;
+        particlesInfo.velocities[i][0] = halfDeltaVelX + accX * deltaTime;
+        particlesInfo.velocities[i][1] = halfDeltaVelY + accY * deltaTime;
+        //particlesInfo.velocities[i][1] += (-9.8f * deltaTime);
 
         if (mouseInfo.leftButton || mouseInfo.rightButton)
             mouseInteraction(mouseInfo, i);
@@ -275,7 +284,7 @@ void Simulation::updatePosition(unsigned int i)
     particlesInfo.positions[i].x += (particlesInfo.velocities[i][0] * deltaTime);
     
 
-    float eps = 0.05f;
+    float eps = 0.1f;
     if ((particlesInfo.positions[i].x - eps) < -boundaryX)
     {
 
@@ -287,7 +296,6 @@ void Simulation::updatePosition(unsigned int i)
         particlesInfo.velocities[i][0] *= damp;
         particlesInfo.positions[i].x -= eps;
     }
-    particlesInfo.predictedPositions[i].x = particlesInfo.positions[i].x;
     
     particlesInfo.positions[i].y += (particlesInfo.velocities[i][1] * deltaTime);
     
@@ -303,8 +311,7 @@ void Simulation::updatePosition(unsigned int i)
         particlesInfo.velocities[i][1] *= damp;
         particlesInfo.positions[i].y -= eps;
     }
-        
-    particlesInfo.predictedPositions[i].y = particlesInfo.positions[i].y;
+    
 }
 
 // 
@@ -317,7 +324,7 @@ float Simulation::computePressureSingleParticle(
 )
 {
     float symm = (currentPressure + neighborPressure) / (2.0f * neighborDensity);
-    return mass * symm * cubicSpikyKernel(dist);
+    return mass * symm * spikyKernel(dist);
 }
 
 glm::vec2 Simulation::computeViscosity(std::array<float, 2>& velCurr, std::array<float, 2>& velNeig, float densNeig, float dist)
@@ -337,36 +344,8 @@ glm::vec2 Simulation::computeViscosity(std::array<float, 2>& velCurr, std::array
 
 void Simulation::mouseInteraction(MouseInfo& mouseInfo, unsigned int ID)
 {
-    /*
-    glm::vec2 pos = mouseWorldPosition;
-    float radius = radiusOfInfluence * 30.0f;
-    NeighborQuery& nQuery = table.getNeighborIDsForMouse(pos, radius);
- 
-    glm::vec2 dir;
-    float dist;
-    float strength = 50.5f;
 
-    if (mouseInfo.rightButton)
-        strength *= -1.0f;
-
-    for (unsigned int i = 0; i < nQuery.size; i++)
-    {   
-        unsigned int nID= nQuery.neighborBucket[i];
-
-        dist = getDistance(particlesInfo.positions[nID], pos);
-
-        if (dist > radius)
-            continue;
-
-        dir = (particlesInfo.positions[nID] - pos) / dist;
-
-        //std::cout << "s: " << dir.x * strength << "s1: " << dir.y * strength << std::endl;
-        particlesInfo.velocities[nID][0] += 1.0f;
-        particlesInfo.velocities[nID][1] += 1.0f;
-    }
-    */
-
-    float radius = radiusOfInfluence * 5.0f;
+    float radius = radiusOfInfluence * 10.0f;
     float dist = getDistance(particlesInfo.positions[ID], mouseWorldPosition);
     glm::vec2 dir;
     float strength = 2.0f;
@@ -415,10 +394,7 @@ void Simulation::_setMousePosition(float x, float y, glm::mat4& view)
 // getDistance: get distance between two locations
 float Simulation::getDistance(glm::vec2& pos1, glm::vec2& pos2)
 {	
-    float x_dist = (pos2.x - pos1.x);
-    float y_dist = (pos2.y - pos1.y);
-
-    return sqrtf(x_dist * x_dist + y_dist * y_dist);
+    return glm::length(pos2 - pos1);
 }
 
 // _max: return max of two value

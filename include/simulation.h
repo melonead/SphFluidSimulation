@@ -55,10 +55,13 @@ private:
     //glm::mat4 orthoMatrix = glm::ortho(0.0f, 1200.0f, 600.0f, 0.0f, -1.0f, 1.0f);
     glm::mat4 perspectiveMatrix = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
 
-    float maxSpeed{ 3.0f };
-    float damp{ -0.96f };
-    float idealDensity{ 1000.0f };
-    float mass{ 0.1f };
+    float particleRadius{0.05f * 2.0f};
+    glm::mat4x4 particleModelMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(particleRadius/0.05f, particleRadius/0.05f, 1.0f));
+
+    float maxSpeed{ 10.0f };
+    float damp{ -0.8f };
+    float idealDensity{ 50.0f };
+    float mass{ 0.3f };
 
 
     unsigned int numberOfVertices = 6;
