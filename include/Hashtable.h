@@ -5,7 +5,7 @@
 #include <vector>
 #include <iostream>
 #include <glm/vec2.hpp>
-#include "sharedVariables.h"
+#include "Settings.h"
 
 
 /*
@@ -22,7 +22,7 @@ struct NeighborQuery
 class HashTable {
 	
 public:
-	HashTable(unsigned int numberOfParticles);
+	HashTable();
 
 	
 	/*
@@ -35,8 +35,12 @@ public:
 	
 
 	void createTable(std::vector<glm::vec2>& positions);
+	/*
+	When the number of particles change, generate the IDs of the particles.
+	*/
+	void generateParticlesIDs(unsigned int numParticles);
 	
-	float getCellSize() {return cellSize; };
+	float getCellSize() {return settings->cellSize; };
 	
 private:
 	/*
@@ -81,8 +85,7 @@ private:
 	NeighborQuery query;
 	NeighborQuery mouseQuery;
 
-	
-
+	SettingsSingleton* settings;
 
 	/*
 	cellDisplacements represent the surrounding cells plus the current cell

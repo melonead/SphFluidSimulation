@@ -4,35 +4,39 @@
 #include <iostream>
 #include <glm/glm.hpp>
 #include <cassert>
-#include "sharedVariables.h"
 
-HashTable::HashTable(unsigned int numberOfParticles)
-	: numParticles(numberOfParticles)
-
+HashTable::HashTable()
 {
-	numberOfCells = (containerWidth / cellSize) * (containerHeight / cellSize);
+
+	// settings
+
+	settings = SettingsSingleton::instance();
+	settings->test = 3.0f;
+
+	numberOfCells = (settings->containerWidth / settings->cellSize) * (settings->containerHeight / settings->cellSize);
 
 	// Add an extra cell so that we don't index outside the array while computing
 	// partial sums.
 	grid = std::vector<unsigned int>(numberOfCells + 1, 0);
-	particleIDs = std::vector<unsigned int>(numberOfParticles, 0);
-	sortedParticleIDs = std::vector<unsigned int>(numberOfParticles, 0);
-	particleCounts = std::vector<unsigned int>(numberOfCells, 0);
-
-	// create particles IDs
-	for (unsigned int i = 0; i < numberOfParticles; i++)
-	{
-		particleIDs[i] = i;
-	}
 
 	query.neighborBucket.reserve(72);
 	query.neighborBucket.resize(72);
 
 	mouseQuery.neighborBucket.reserve(144);
 	mouseQuery.neighborBucket.resize(144);
+}
 
+void HashTable::generateParticlesIDs(unsigned int numParticles)
+{
+	particleIDs = std::vector<unsigned int>(numParticles, 0);
+	sortedParticleIDs = std::vector<unsigned int>(numParticles, 0);
+	particleCounts = std::vector<unsigned int>(numberOfCells, 0);
 
-
+	// create particles IDs
+	for (unsigned int i = 0; i < numParticles; i++)
+	{
+		particleIDs[i] = i;
+	}
 }
 
 
@@ -52,8 +56,8 @@ NeighborQuery& HashTable::getNeighborIDs(glm::vec2& position)
 		// REVISIT: Do the cell displacements need to be scaled by
 		// the cell size?
 
-		pos.x = position.x + cellDisplacements[i][0] * cellSize;
-		pos.y = position.y + cellDisplacements[i][1] * cellSize;
+		pos.x = position.x + cellDisplacements[i][0] * settings->cellSize;
+		pos.y = position.y + cellDisplacements[i][1] * settings->cellSize;
 		neighborCellPos = getCellPosition(pos);
 		key = tableHash(neighborCellPos);
 		// Go to table and find where to start looking
@@ -96,8 +100,8 @@ NeighborQuery& HashTable::getNeighborIDsForMouse(glm::vec2& position, float radi
 		for (unsigned int x = 0; x < boundingWidth; x++)
 		{
 
-			pos.x = position.x + x * cellSize;
-			pos.y = position.y + y * cellSize;
+			pos.x = position.x + x * settings->cellSize;
+			pos.y = position.y + y * settings->cellSize;
 
 			//std::cout << "x: " << pos.x << " y: " << pos.y << std::endl;
 			
@@ -187,8 +191,8 @@ int HashTable::tableHash(glm::vec2& cellPos)
 glm::vec2 HashTable::getCellPosition (glm::vec2& position)
 {
 	// discretize particle position from float to int
-	int x = floor(position.x / radiusOfInfluence);
-	int y = floor(position.y / radiusOfInfluence);
+	int x = floor(position.x / settings->radiusOfInfluence);
+	int y = floor(position.y / settings->radiusOfInfluence);
 	return glm::vec2(x, y);
 }
 

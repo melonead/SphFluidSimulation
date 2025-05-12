@@ -88,7 +88,7 @@ public:
             0.05f, 0.05f
         };
         
-        Welol::VertexAttribute quadLoopPositions{0, Welol::WL_FLOAT2, quadVertices.data(), 6, false};
+        Welol::VertexAttribute quadLoopPositions{0, Welol::WL_FLOAT2, quadLoopVertices.data(), 4, false};
         Rectangle.addVertexAttribute(quadLoopPositions);
         renderer.initializeRenderOperation(Rectangle);
 
@@ -116,33 +116,13 @@ public:
 
     void drawRectangle(float x, float y, float width, float height)
     {
-        // float lineThickness = 0.175f;
-
-        // float quadWidth = 0.05f;
-        // float scaleX = (width * 0.5f) / quadWidth;
-        // float scaleY = (height * 0.5f) / quadWidth;
-        
-        // rectModel = glm::translate(glm::mat4(1.0f), glm::vec3(x + (width * 0.5f), y - (height * 0.5f), 0.0f));
-        // rectModel = glm::scale(rectModel, glm::vec3(scaleX, scaleY, 1.0f));
-
-        // rectangleShader.use();
-        // rectangleShader.setMatrix4fv("view", viewMatrix);
-        // rectangleShader.setMatrix4fv("projection", perspectiveMatrix);
-        // rectangleShader.setMatrix4fv("model", rectModel);
-
-        // rectangleShader.setInt("cx", x);
-        // rectangleShader.setInt("cy", y);
-
-        // rectangleShader.setInt("width", width);
-        // rectangleShader.setInt("height", height);
-
-        float lineThickness = 0.075f;
+        float lineThickness = 0.175f;
 
         float quadWidth = 0.05f;
         float scaleX = (width * 0.5f) / quadWidth;
         float scaleY = (height * 0.5f) / quadWidth;
         
-        rectModel = glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.0f));
+        rectModel = glm::translate(glm::mat4(1.0f), glm::vec3(x + (width * 0.5f), y - (height * 0.5f), 0.0f));
         rectModel = glm::scale(rectModel, glm::vec3(scaleX, scaleY, 1.0f));
 
         rectangleShader.use();
@@ -150,11 +130,11 @@ public:
         rectangleShader.setMatrix4fv("projection", perspectiveMatrix);
         rectangleShader.setMatrix4fv("model", rectModel);
 
-        rectangleShader.setFloat("cx", x);
-        rectangleShader.setFloat("cy", y);
+        rectangleShader.setInt("cx", x);
+        rectangleShader.setInt("cy", y);
 
-        rectangleShader.setFloat("width", width);
-        rectangleShader.setFloat("height", height);
+        rectangleShader.setInt("width", width);
+        rectangleShader.setInt("height", height);
   
         renderer.render(Rectangle);
     }
@@ -195,7 +175,7 @@ private:
     float cSize;
     unsigned int maxCircles {20};
     Welol::RenderOperation Circle{Welol::WL_TRIANGLES, 6, 0, maxCircles, true, false};
-    Welol::RenderOperation Rectangle{Welol::WL_TRIANGLES, 6, 0, maxCircles, false, false};
+    Welol::RenderOperation Rectangle{Welol::WL_LINE_LOOP, 4, 0, maxCircles, false, false};
     Welol::RenderOperation Grid;
     Shader gridShader;
     Shader circleShader;

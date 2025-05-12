@@ -2,7 +2,7 @@
 #include <array>
 #include <glm/gtc/matrix_transform.hpp>
 #include "Renderer.h"
-
+#include "Camera.h"
 
 // taking the particles temporarily so that i don't break the old code completely
 // as I reimplement the rendering system
@@ -10,73 +10,133 @@ Simulation::Simulation(Shader& circleShaderProgram, Welol::Renderer& glRenderer)
     : shaderProg{circleShaderProgram}
 {
 
-    int size = std::sqrt(numParticles);
-    float spacing = 0.2f;
-
-
-    float startPos[2] = { -size * 0.5f * spacing + 0.05f, size * 0.5f * spacing - 0.05f };
-   
-
-    assert(numParticles > 0);
     
-    particlesInfo.positions.resize(numParticles);
-    particlesInfo.predictedPositions.resize(numParticles);
-    particlesInfo.densities.resize(numParticles);
-    particlesInfo.velocities = std::vector<std::array<float, 2>>(numParticles);
-
-    for (unsigned int i = 0; i < numParticles; i++)
-    {
-        particlesInfo.velocities[i][0] = 0.0f;
-        particlesInfo.velocities[i][1] = 0.0f;
-
-    }
-
-
-    for (int y = 0; y < size; y++)
-    {
-        for (int x = 0; x < size; x++)
-        {   
-            glm::vec2 pos;
-            int index = x + y * size;
-            //SimParticles[index].mass = 1;
-            pos.x = startPos[0] + (x * spacing);
-            pos.y = startPos[1] - (y * spacing);
-            particlesInfo.positions[index] = pos;
-
-        }
-    }
-    
-    particlesInfo.predictedPositions = particlesInfo.positions;
-    table.createTable(particlesInfo.positions);
-    setUpRendering(glRenderer);
-
-    float containerPosX = -containerWidth * 0.5f;
-    float containerPosY = containerHeight * 0.5f;
-    vis = Visualization{table.getCellSize(), containerWidth, containerHeight, containerPosX, containerPosY, glRenderer};
+    float containerPosX = -settings->containerWidth * 0.5f;
+    float containerPosY = settings->containerHeight * 0.5f;
+    vis = Visualization{table.getCellSize(), settings->containerWidth, settings->containerHeight, containerPosX, containerPosY, glRenderer};
     vis.setPerspectiveMatrix(perspectiveMatrix);
+
+    setParticles(settings->numParticles, glRenderer);
+    
+    setUpRendering(glRenderer);
 }
 
 Simulation::~Simulation() {
-} 
+}
 
-void Simulation::update(Welol::Renderer& glRenderer, glm::mat4& view, float dt, MouseInfo& mouseInfo) {
-    vis.setViewMatrix(view);
+void Simulation::setParticles(unsigned int numParticles, Welol::Renderer& glRenderer)
+{
+    assert(settings->numParticles > 0);
 
-    _setMousePosition(mouseInfo.positionX, mouseInfo.positionY, view);
-    computeDensities();
+    
+    // Add particles if any have been added.
+    if (settings->numParticles > settings->prevNumParticles)
+    {
+        unsigned int particleDifference = settings->numParticles - settings->prevNumParticles;
+        int size = std::sqrt(settings->numParticles);
+        int height = (int) (settings->numParticles / size);
+        float spacing = 0.4f;
+        
+        float startPos[2] = { -size * 0.5f * spacing + 0.05f, size * 0.5f * spacing - 0.05f };
+        
+        particlesInfo.positions.resize(settings->numParticles);
+        particlesInfo.predictedPositions.resize(settings->numParticles);
+        particlesInfo.densities.resize(settings->numParticles);
+        particlesInfo.velocities = std::vector<std::array<float, 2>>(settings->numParticles);
+        
+        for (unsigned int i = 0; i < settings->numParticles; i++)
+        {
+            particlesInfo.velocities[i][0] = 0.0f;
+            particlesInfo.velocities[i][1] = 0.0f;
+        
+        }
+        
+        
+        int extraparticleCount = settings->numParticles - height * size;
+        int index = 0;
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < size; x++)
+            {   
+                index = x + y * size;
+                glm::vec2 pos;
+                //SimParticles[index].settings->mass = 1;
+                pos.x = startPos[0] + (x * spacing);
+                pos.y = startPos[1] - (y * spacing);
+                particlesInfo.positions[index] = pos;
+            }
+        
+        
+        }
+        
+        // Append remaining particles.
+        for (int ex = 0; ex < extraparticleCount; ex++)
+        {
+            glm::vec2 pos;
+            index++;
+            //SimParticles[index].settings->mass = 1;
+            pos.x = startPos[0] + (ex * spacing);
+            pos.y = startPos[1] - ((size + 1) * spacing);
+            particlesInfo.positions[index] = pos;
+        }
+        
+        
+        particlesInfo.predictedPositions = particlesInfo.positions;
+        
+        // 
+        unsigned int offset = sizeof(glm::vec2) * settings->prevNumParticles;
+        unsigned int numberOfBytes = sizeof(glm::vec2) * particleDifference;
+    
+        unsigned int offsetIntoBucket = sizeof(glm::vec2) * (settings->prevNumParticles - 1);
+
+        glRenderer.addSizeBytesToBuffer(particleRenderOperation, 0, offset, numberOfBytes, particlesInfo.positions.data());
+        // Generate indices before creating the table.
+        table.generateParticlesIDs(settings->numParticles);
+        table.createTable(particlesInfo.positions);
+    } 
+    else // Remove particles if any have been removed.
+    {
+        unsigned int diff = settings->prevNumParticles - settings->numParticles;
+
+        if (diff < 0)
+            return;
+        // Remove diff particles from positions list
+        for (unsigned int i = 0; i < diff; i++)
+        {
+            particlesInfo.positions.pop_back();
+        }
+    }
+}
+
+void Simulation::update(Welol::Renderer& glRenderer, Welol::Camera& camera, float dt, MouseInfo& mouseInfo) {
+
+    vis.setViewMatrix(camera.getViewMatrix());
+
+    if (settings->updateParticlesCount)
+    {
+        setParticles(settings->numParticles, glRenderer);
+    }
+
+    if (settings->startSimulation)
+    {
+        _setMousePosition(mouseInfo.positionX, mouseInfo.positionY, camera);
+        computeDensities();
+        computeForces(mouseInfo);
+    }
     // if (mouseInfo.leftButton || mouseInfo.rightButton)
     //     mouseInteraction(mouseInfo);
-
-    computeForces(mouseInfo); 
-
-    //vis.drawGrid(glRenderer, view, perspectiveMatrix);
-    updateRendering(glRenderer, view, perspectiveMatrix);
-
-    //vis.drawCircle(particlesInfo.positions[0].x, particlesInfo.positions[0].y, radiusOfInfluence);
-    //vis.drawCircle(0.0f, 0.0f, radiusOfInfluence * 10.0f);
-    //vis.drawRectangle(-containerWidth / 2.0f, containerHeight / 2.0f, containerWidth, containerHeight);
-    vis.drawRectangle(0.0f, 0.0f, containerWidth, containerHeight);
     
+    
+    //vis.drawGrid(glRenderer, view, perspectiveMatrix);
+
+    vis.drawRectangle(-settings->containerWidth * 0.5f, settings->containerHeight * 0.5f, settings->containerWidth, settings->containerHeight);
+    //vis.drawRectangle(0.0f, 0.0f, settings->containerWidth, settings->containerHeight);
+    
+    //std::cout << "particle difference: " << settings->numParticles - settings->prevNumParticles << std::endl;
+
+    // std::cout << "particles: " << settings->numParticles << " positions: " << particlesInfo.positions.size() << std::endl;
+    //if (particlesInfo.positions.size() == settings->numParticles)
+    updateRendering(glRenderer, camera.getViewMatrix(), perspectiveMatrix);
 
     table.createTable(particlesInfo.positions);
 }
@@ -96,7 +156,7 @@ void Simulation::setUpRendering(Welol::Renderer& glRenderer) {
     };
 
     unsigned int quadVerticesSize = quadVertices.size();
-    Welol::VertexAttribute positionAttr{0, Welol::WL_FLOAT2, particlesInfo.positions.data(), numParticles, true};
+    Welol::VertexAttribute positionAttr{0, Welol::WL_FLOAT2, particlesInfo.positions.data(), (unsigned int) settings->maxParticles, true};
     Welol::VertexAttribute quadPosAttr{1,  Welol::WL_FLOAT2, quadVertices.data(), quadVerticesSize, false};
 
     particleRenderOperation.addVertexAttribute(positionAttr);
@@ -116,7 +176,9 @@ void Simulation::updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, g
     shaderProg.setMatrix4fv("projection", projection);
     shaderProg.setMatrix4fv("model", particleModelMatrix);
     shaderProg.setFloat("radius", particleRadius);
-    glRenderer.updateRenderOperationVertexAttribute(particleRenderOperation, 0, 0, particlesInfo.positions.data());
+    //glRenderer.updateRenderOperationVertexAttribute(particleRenderOperation, 0, 0, particlesInfo.positions.data());
+    unsigned int numberOfBytes = sizeof(glm::vec2) * particlesInfo.positions.size();
+    glRenderer.addSizeBytesToBuffer(particleRenderOperation, 0, 0, numberOfBytes, particlesInfo.positions.data());
 }
 
 
@@ -124,11 +186,11 @@ void Simulation::updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, g
 void Simulation::computeDensities()
 {
     
-    for (int i = 0; i < numParticles; i++)
+    for (int i = 0; i < settings->numParticles; i++)
     {
         // compute predicted positions.
-        particlesInfo.predictedPositions[i].x = particlesInfo.positions[i].x + particlesInfo.velocities[i][0] * deltaTime;
-        particlesInfo.predictedPositions[i].y = particlesInfo.positions[i].y + particlesInfo.velocities[i][1] * deltaTime;
+        particlesInfo.predictedPositions[i].x = particlesInfo.positions[i].x + particlesInfo.velocities[i][0] * settings->deltaTime;
+        particlesInfo.predictedPositions[i].y = particlesInfo.positions[i].y + particlesInfo.velocities[i][1] * settings->deltaTime;
 
         float dist = 0.0f;
         //int nbSize = particlesInfo.neighbors[i].size();
@@ -151,9 +213,9 @@ void Simulation::computeDensities()
             if (dist <= 0.0f)
                 continue;
 
-            if (dist <= radiusOfInfluence) {
+            if (dist <= settings->radiusOfInfluence) {
                    
-                density += mass * cubicSplineKernel(dist);
+                density += settings->mass * cubicSplineKernel(dist);
             }
         }
         
@@ -166,7 +228,7 @@ void Simulation::computeDensities()
 
 void Simulation::computeForces(MouseInfo& mouseInfo)
 {
-    for (int i = 0; i < numParticles; i++)
+    for (int i = 0; i < settings->numParticles; i++)
     {
         float dist = 0.0f;
 
@@ -177,6 +239,9 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
         float pressureForceFieldY = 0.0f;
         float viscosityForceFieldX = 0.0f;
         float viscosityForceFieldY = 0.0f;
+
+        float nFx = 0.0f;
+        float nFy = 0.0f;
 
         /*
             REVISIT: Is it faster to just use the sortedParticlesIDs directly rather than packing them in
@@ -198,7 +263,7 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
                 Distance can be zero. Is there a way for C++ say we are dividing by zero?
             */
            
-           if (dist <= radiusOfInfluence) 
+           if (dist <= settings->radiusOfInfluence) 
            {
                glm::vec2 dir = (particlesInfo.predictedPositions[neighborID] - particlesInfo.predictedPositions[i]) / dist;
                 if (dist <= 0.0f)
@@ -224,12 +289,14 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
                 // Near Force.
                 // Prevent clustering by applying a (near) force inverse propertional to distance between particles.
                 // The smaller the distance the higher the force. 
-                particlesInfo.velocities[i][0] += (-dir.x) * (1.0f - dist/radiusOfInfluence) * nearForceConstant;
-                particlesInfo.velocities[i][1] += (-dir.y) * (1.0f - dist/radiusOfInfluence) * nearForceConstant;
-                // move the neighbor in the opposite direction.
-                particlesInfo.velocities[neighborID][0] += (dir.x) * (1.0f - dist/radiusOfInfluence) * nearForceConstant;
-                particlesInfo.velocities[neighborID][1] += (dir.y) * (1.0f - dist/radiusOfInfluence) * nearForceConstant;
+                // particlesInfo.velocities[i][0] += (-dir.x) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
+                // particlesInfo.velocities[i][1] += (-dir.y) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
+                // // move the neighbor in the opposite direction.
+                // particlesInfo.velocities[neighborID][0] += (dir.x) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
+                // particlesInfo.velocities[neighborID][1] += (dir.y) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
 
+                nFx += (-dir.x) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
+                nFy += (-dir.y) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
             }
         }
 
@@ -237,6 +304,11 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
 
         totalForceFieldX += -pressureForceFieldX;
         totalForceFieldY += -pressureForceFieldY;
+
+        totalForceFieldX += nFx;
+        totalForceFieldY += nFy;
+
+
 
         // totalForceFieldX += viscosityForceFieldX * viscosityConstant;
         // totalForceFieldY += viscosityForceFieldY * viscosityConstant;
@@ -246,11 +318,11 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
         float accY = (totalForceFieldY)  / particlesInfo.densities[i];
         // Compute velocity 
         // REVISIT: temporary 
-        float halfDeltaVelX = particlesInfo.velocities[i][0] - 0.5f * deltaTime * accX;
-        float halfDeltaVelY = particlesInfo.velocities[i][1] - 0.5f * deltaTime * accY;
-        particlesInfo.velocities[i][0] = halfDeltaVelX + accX * deltaTime;
-        particlesInfo.velocities[i][1] = halfDeltaVelY + accY * deltaTime;
-        //particlesInfo.velocities[i][1] += (-9.8f * deltaTime);
+        float halfDeltaVelX = particlesInfo.velocities[i][0] - 0.5f * settings->deltaTime * accX;
+        float halfDeltaVelY = particlesInfo.velocities[i][1] - 0.5f * settings->deltaTime * accY;
+        particlesInfo.velocities[i][0] = halfDeltaVelX + accX * settings->deltaTime;
+        particlesInfo.velocities[i][1] = halfDeltaVelY + accY * settings->deltaTime;
+        particlesInfo.velocities[i][1] += (settings->gravity * settings->deltaTime);
 
         if (mouseInfo.leftButton || mouseInfo.rightButton)
             mouseInteraction(mouseInfo, i);
@@ -263,25 +335,25 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
 void Simulation::updatePosition(unsigned int i)
 {
 
-    float boundaryX = containerWidth * 0.5f;
-    float boundaryY = containerHeight * 0.5f;
+    float boundaryX = settings->containerWidth * 0.5f;
+    float boundaryY = settings->containerHeight * 0.5f;
     
     // clamp velocity
-    if (particlesInfo.velocities[i][0] > maxSpeed) {
-        particlesInfo.velocities[i][0] = maxSpeed;
+    if (particlesInfo.velocities[i][0] > settings->maxSpeed) {
+        particlesInfo.velocities[i][0] = settings->maxSpeed;
     }
-    else if (particlesInfo.velocities[i][0] < -maxSpeed) {
-        particlesInfo.velocities[i][0] = -maxSpeed;
-    }
-
-    if (particlesInfo.velocities[i][1] > maxSpeed) {
-        particlesInfo.velocities[i][1] = maxSpeed;
-    }
-    else if (particlesInfo.velocities[i][1] < -maxSpeed) {
-        particlesInfo.velocities[i][1] = -maxSpeed;
+    else if (particlesInfo.velocities[i][0] < -settings->maxSpeed) {
+        particlesInfo.velocities[i][0] = -settings->maxSpeed;
     }
 
-    particlesInfo.positions[i].x += (particlesInfo.velocities[i][0] * deltaTime);
+    if (particlesInfo.velocities[i][1] > settings->maxSpeed) {
+        particlesInfo.velocities[i][1] = settings->maxSpeed;
+    }
+    else if (particlesInfo.velocities[i][1] < -settings->maxSpeed) {
+        particlesInfo.velocities[i][1] = -settings->maxSpeed;
+    }
+
+    particlesInfo.positions[i].x += (particlesInfo.velocities[i][0] * settings->deltaTime);
     
 
     float eps = 0.1f;
@@ -297,7 +369,7 @@ void Simulation::updatePosition(unsigned int i)
         particlesInfo.positions[i].x -= eps;
     }
     
-    particlesInfo.positions[i].y += (particlesInfo.velocities[i][1] * deltaTime);
+    particlesInfo.positions[i].y += (particlesInfo.velocities[i][1] * settings->deltaTime);
     
     
     if ((particlesInfo.positions[i].y - eps) < -boundaryY)
@@ -324,7 +396,7 @@ float Simulation::computePressureSingleParticle(
 )
 {
     float symm = (currentPressure + neighborPressure) / (2.0f * neighborDensity);
-    return mass * symm * spikyKernel(dist);
+    return settings->mass * symm * spikyKernel(dist);
 }
 
 glm::vec2 Simulation::computeViscosity(std::array<float, 2>& velCurr, std::array<float, 2>& velNeig, float densNeig, float dist)
@@ -334,7 +406,7 @@ glm::vec2 Simulation::computeViscosity(std::array<float, 2>& velCurr, std::array
     res.x = (velNeig[0] - velCurr[0]) / densNeig;
     res.y = (velNeig[1] - velCurr[1]) / densNeig;
 
-    res = mass * res * viscosityLaplacian(dist);
+    res = settings->mass * res * viscosityLaplacian(dist);
     return res;
 }
 
@@ -345,7 +417,7 @@ glm::vec2 Simulation::computeViscosity(std::array<float, 2>& velCurr, std::array
 void Simulation::mouseInteraction(MouseInfo& mouseInfo, unsigned int ID)
 {
 
-    float radius = radiusOfInfluence * 10.0f;
+    float radius = settings->radiusOfInfluence * 10.0f;
     float dist = getDistance(particlesInfo.positions[ID], mouseWorldPosition);
     glm::vec2 dir;
     float strength = 2.0f;
@@ -370,25 +442,35 @@ glm::vec2 Simulation::screenToNdc(float x, float y)
     return result;
 }
 
-glm::vec2 Simulation::ndcToWorld(float x, float y, glm::mat4& view)
+glm::vec2 Simulation::ndcToWorld(float x, float y, Welol::Camera& camera)
 {   
     
     glm::vec4 interm(x, y, -1.0f, 1.0f);
 
-    interm = glm::inverse(perspectiveMatrix * view) * interm;
+    interm = glm::inverse(perspectiveMatrix) * interm;
 
+    // eye space ray
+    interm = glm::vec4(interm.x, interm.y, -1.0f, 0.0f);
+
+    // world space ray
+    interm = glm::inverse(camera.getViewMatrix()) * interm;
+
+    glm::vec3 unitRay = glm::normalize(glm::vec3(interm.x, interm.y, interm.z));
     
-    glm::vec2 result;
-    result.x  = interm.x * 30.0f;
-    result.y = interm.y * 30.0f;
+    glm::vec3 planeNormal(0.0f, 0.0f, 1.0f);
+    float planeDistanceFromOrigin = 0.0f;
+    float distance = -(glm::dot(camera.getPosition(), planeNormal) + planeDistanceFromOrigin) / glm::dot(unitRay, planeNormal);
     
+    glm::vec2 result(unitRay.x * distance, unitRay.y * distance);
+
     return result;
 }
 
-void Simulation::_setMousePosition(float x, float y, glm::mat4& view) 
+void Simulation::_setMousePosition(float x, float y, Welol::Camera& camera) 
 {
     glm::vec2 mouseNdc = screenToNdc(x, y);    
-    mouseWorldPosition = ndcToWorld(mouseNdc.x, mouseNdc.y, view);
+    mouseWorldPosition = ndcToWorld(mouseNdc.x, mouseNdc.y, camera);
+
 }
 
 // getDistance: get distance between two locations
@@ -406,21 +488,21 @@ float Simulation::_min(float a, float b)
 // getPressure: return the pressure to be applied to a particle
 float Simulation::getPressure(float d)
 {	
-    float v = pressureConstant * (d - idealDensity);
+    float v = settings->pressureConstant * (d - settings->idealDensity);
     return v;
 }
 
 float Simulation::poly6Kernel(float dist)
 {
-    float a = 315.0f / (64.0f * PI * powf(radiusOfInfluence, 9.0f));
-    float b = powf(powf(radiusOfInfluence, 2) - powf(dist, 2), 3);
+    float a = 315.0f / (64.0f * settings->PI * powf(settings->radiusOfInfluence, 9.0f));
+    float b = powf(powf(settings->radiusOfInfluence, 2) - powf(dist, 2), 3);
     return a * b;
 }
 
 float Simulation::cubicSplineKernel(float dist)
 {
-    float q = (1.0f / radiusOfInfluence) * dist;
-    float a = (40.0f / (7.0f * PI * powf(radiusOfInfluence, 2.0f)));
+    float q = (1.0f / settings->radiusOfInfluence) * dist;
+    float a = (40.0f / (7.0f * settings->PI * powf(settings->radiusOfInfluence, 2.0f)));
 
     if (q <= 0.5f)
         return a * (6.0f * (powf(q, 3.0f) - powf(q, 2.0f)) + 1.0f);
@@ -430,24 +512,24 @@ float Simulation::cubicSplineKernel(float dist)
 
 float Simulation::spikyKernel(float dist)
 {
-    float a = 15.0f / (PI * powf(radiusOfInfluence, 6.0f));
-    float b = powf((radiusOfInfluence - dist), 3.0f);
+    float a = 15.0f / (settings->PI * powf(settings->radiusOfInfluence, 6.0f));
+    float b = powf((settings->radiusOfInfluence - dist), 3.0f);
     return a * b;
 }
 
 float Simulation::viscosityLaplacian(float dist)
 {
-    float a = 45.0f / (PI * powf(radiusOfInfluence, 6.0f));
-    float b = (radiusOfInfluence - dist);
+    float a = 45.0f / (settings->PI * powf(settings->radiusOfInfluence, 6.0f));
+    float b = (settings->radiusOfInfluence - dist);
     return a * b;
 }
 
 float Simulation::quadraticSpkikyKernel(float dist)
 {
-    return powf(1.0f - (dist / radiusOfInfluence), 2.0f);
+    return powf(1.0f - (dist / settings->radiusOfInfluence), 2.0f);
 }
 
 float Simulation::cubicSpikyKernel(float dist)
 {
-    return powf(1.0f - (dist / radiusOfInfluence), 3.0f);
+    return powf(1.0f - (dist / settings->radiusOfInfluence), 3.0f);
 }

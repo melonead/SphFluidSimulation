@@ -16,7 +16,7 @@
 #include "simulation.h"
 #include "Renderer.h"
 #include "Camera.h"
-#include "sharedVariables.h"
+#include "Settings.h"
 #include "Input.h"
 
 #include "imgui.h"
@@ -162,12 +162,14 @@ int main()
     Simulation simulation{particleShaderProgram, glRenderer};
 
 
-    Welol::Camera* camera = new Welol::Camera(glm::vec3(0.0f, 0.0f, 30.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+    Welol::Camera camera{glm::vec3(0.0f, 0.0f, 30.0f), glm::vec3(0.0f, 0.0f, 0.0f)};
     bool rotateCamera = false;
 
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
     //Text text{glRenderer};
+
+    SettingsSingleton* settings = SettingsSingleton::instance();
 
     while (!glfwWindowShouldClose(window))
     {
@@ -195,15 +197,15 @@ int main()
         
         if (rotateCamera)
         {
-            camera->update(cameraScrollDirection, yaw, pitch, mouseInfo.positionX, mouseInfo.positionY, forwardCamera);
+            camera.update(cameraScrollDirection, yaw, pitch, mouseInfo.positionX, mouseInfo.positionY, forwardCamera);
         } else{
-            camera->setLastMousePos(mouseInfo.positionX, mouseInfo.positionY);
+            camera.setLastMousePos(mouseInfo.positionX, mouseInfo.positionY);
         }
         if (forwardCamera)
-        camera->moveForward(cameraScrollDirection);
+        camera.moveForward(cameraScrollDirection);
         forwardCamera = false;
 
-        simulation.update(glRenderer, camera->getViewMatrix(), (float) deltaTime, mouseInfo);
+        simulation.update(glRenderer, camera, (float) settings->deltaTime, mouseInfo);
 
         //text.render("text", 20.0f, 20.0f, 2.0f, glm::vec3(1.0f, 0.0f, 0.0f), glRenderer);
 
@@ -212,40 +214,36 @@ int main()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        {
-            static float f = 0.0f;
-            static int counter = 0;
-
-            ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-            ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
-
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-            if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
-        }
+        settings->displayUi();
 
         // Rendering
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
+        // Update and Render additional Platform Windows
+        // (Platform functions may change the current OpenGL context, so we save/restore it to make it easier to paste this code elsewhere.
+        //  For this specific demo app we could also call glfwMakeContextCurrent(window) directly)
+        if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+        {
+            GLFWwindow* backup_current_context = glfwGetCurrentContext();
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+            glfwMakeContextCurrent(backup_current_context);
+        }
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
 
-    delete camera;
+    // Cleanup
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
 
+    
     // glfw: terminate, clearing all previously allocated GLFW resources.
     // ------------------------------------------------------------------
+    glfwDestroyWindow(window);
     glfwTerminate();
     return 0;
 }

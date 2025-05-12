@@ -9,7 +9,7 @@
 #include "Renderer.h"
 #include "Camera.h"
 #include "visualization.h"
-#include "sharedVariables.h"
+#include "Settings.h"
 #include "Input.h"
 
 /*
@@ -19,8 +19,10 @@ class Simulation {
 public:
     Simulation(Shader& circleShaderProgram, Welol::Renderer& glRenderer);
     ~Simulation();
-    void update(Welol::Renderer& glRenderer, glm::mat4& view, float dt, MouseInfo& mouseInfo);
+    void update(Welol::Renderer& glRenderer, Welol::Camera& camera, float dt, MouseInfo& mouseInfo);
 private:
+
+    SettingsSingleton* settings = SettingsSingleton::instance();
     /*
         Information used by OpenGl to render the particles.
     */
@@ -48,8 +50,6 @@ private:
 
     // The number of particles to be simulated
     
-    float gravity {0.0f};
-
     float aspect = SCR_WIDTH / SCR_HEIGHT;
 
     //glm::mat4 orthoMatrix = glm::ortho(0.0f, 1200.0f, 600.0f, 0.0f, -1.0f, 1.0f);
@@ -58,20 +58,17 @@ private:
     float particleRadius{0.05f * 2.0f};
     glm::mat4x4 particleModelMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(particleRadius/0.05f, particleRadius/0.05f, 1.0f));
 
-    float maxSpeed{ 10.0f };
     float damp{ -0.8f };
-    float idealDensity{ 50.0f };
-    float mass{ 0.3f };
-
 
     unsigned int numberOfVertices = 6;
-    Welol::RenderOperation particleRenderOperation{Welol::WL_TRIANGLES, numberOfVertices, 0, numParticles, true, false};
+
+    Welol::RenderOperation particleRenderOperation{Welol::WL_TRIANGLES, numberOfVertices, 0, settings->maxParticles, true, false};
 
     /*
         The hash table enables fast search for particles withing the radius of influence
         of a particles.
     */
-    HashTable table{ numParticles};
+    HashTable table{};
 
     glm::vec2 mouseWorldPosition;
 
@@ -83,12 +80,13 @@ private:
     Shader shaderProg;
     void setUpRendering(Welol::Renderer& glRenderer);
     void updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, glm::mat4& projection);
+    void setParticles(unsigned int numParticles, Welol::Renderer& glRenderer);
     /*
         Visualization of the hash table
     */
 
     Visualization vis;
-
+    
 
 
     void updatePosition(unsigned int i);
@@ -135,11 +133,11 @@ private:
     // this force will be used to compute acceleration -> velocity -> position
     void computeForces(MouseInfo& mouseInfo);
 
-    void _setMousePosition(float x, float y, glm::mat4& view);
+    void _setMousePosition(float x, float y, Welol::Camera& camera);
 
     glm::vec2 screenToNdc(float X, float Y);
 
-    glm::vec2 ndcToWorld(float X, float Y, glm::mat4& view);
+    glm::vec2 ndcToWorld(float X, float Y, Welol::Camera& camera);
 
     void mouseInteraction(MouseInfo& mouseInfo, unsigned int ID);
 };
