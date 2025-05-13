@@ -2,11 +2,13 @@
 
 layout (location=0) in vec2 position;
 layout (location=1) in vec2 quadVertices;
+layout (location=2) in float gradientXCoordinate;
 
 
 out vec2 fragPosition;
 out vec2 center;
 out float fragRadius;
+out float fragXCoord;
 
 uniform float radius;
 uniform mat4 view;
@@ -14,6 +16,7 @@ uniform mat4 projection;
 uniform mat4 model;
 
 vec4 worldPosition;
+
 
 void main()
 {
@@ -23,4 +26,6 @@ void main()
     center = position;
     fragPosition = worldPosition.xy;
     fragRadius = radius;
+
+    fragXCoord = gradientXCoordinate;
 }

@@ -11,6 +11,7 @@
 #include "visualization.h"
 #include "Settings.h"
 #include "Input.h"
+#include "Texture.h"
 
 /*
     Simulation brings manages the whole simulation
@@ -43,6 +44,7 @@ private:
     struct ParticlesInformation {
         std::vector<glm::vec2> positions;
         std::vector<glm::vec2> predictedPositions;
+        std::vector<float> gradientTextureCoordinates;
         std::vector<float> densities;
         std::vector<std::array<float, 2>> velocities;
 
@@ -55,7 +57,7 @@ private:
     //glm::mat4 orthoMatrix = glm::ortho(0.0f, 1200.0f, 600.0f, 0.0f, -1.0f, 1.0f);
     glm::mat4 perspectiveMatrix = glm::perspective(glm::radians(45.0f), aspect, 0.1f, 100.0f);
 
-    float particleRadius{0.05f * 2.0f};
+    float particleRadius{0.05f * 4.0f};
     glm::mat4x4 particleModelMatrix = glm::scale(glm::mat4(1.0f), glm::vec3(particleRadius/0.05f, particleRadius/0.05f, 1.0f));
 
     float damp{ -0.8f };
@@ -70,15 +72,25 @@ private:
     */
     HashTable table{};
 
+
     glm::vec2 mouseWorldPosition;
 
+    //Welol::Texture gradientTexture;
+
+    // Gradient Texture
+    //std::string gTexPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\FluidSim\\particleGradient.png";
+    // std::string gTexPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\resource\\skybox\\cubemap\\cubemap_negy.png";
+    std::string cameraTexturePath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\resource\\3DModels\\images\\testTexture.png";
+    std::string cameraTextureName = "cameraTexture";
+    unsigned int texUnit = 0;
+    Welol::Texture gradientTexture{Welol::WL_TEX_2D, Welol::WL_RGBA, cameraTexturePath, 0, cameraTextureName, texUnit};
 
     /*
         setUpRendering prepares for the rendering of the particles.
     */
+    void setUpRendering(Welol::Renderer& glRenderer);
 
     Shader shaderProg;
-    void setUpRendering(Welol::Renderer& glRenderer);
     void updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, glm::mat4& projection);
     void setParticles(unsigned int numParticles, Welol::Renderer& glRenderer);
     /*

@@ -3,6 +3,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include "Renderer.h"
 #include "Camera.h"
+#include "Texture.h"
 
 // taking the particles temporarily so that i don't break the old code completely
 // as I reimplement the rendering system
@@ -26,7 +27,7 @@ Simulation::~Simulation() {
 
 void Simulation::setParticles(unsigned int numParticles, Welol::Renderer& glRenderer)
 {
-    assert(settings->numParticles > 0);
+    //assert(settings->numParticles > 0);
 
     
     // Add particles if any have been added.
@@ -39,9 +40,13 @@ void Simulation::setParticles(unsigned int numParticles, Welol::Renderer& glRend
         
         float startPos[2] = { -size * 0.5f * spacing + 0.05f, size * 0.5f * spacing - 0.05f };
         
+        // REVISIT(PERFORMANCE): Do we have to resize the whole vector? could we
+        // just add the additional size instead of resizing the whole thing? Perhaps
+        // it's not bad because this only happens when use add particles.
         particlesInfo.positions.resize(settings->numParticles);
         particlesInfo.predictedPositions.resize(settings->numParticles);
         particlesInfo.densities.resize(settings->numParticles);
+        particlesInfo.gradientTextureCoordinates.resize(settings->numParticles);
         particlesInfo.velocities = std::vector<std::array<float, 2>>(settings->numParticles);
         
         for (unsigned int i = 0; i < settings->numParticles; i++)
@@ -158,27 +163,53 @@ void Simulation::setUpRendering(Welol::Renderer& glRenderer) {
     unsigned int quadVerticesSize = quadVertices.size();
     Welol::VertexAttribute positionAttr{0, Welol::WL_FLOAT2, particlesInfo.positions.data(), (unsigned int) settings->maxParticles, true};
     Welol::VertexAttribute quadPosAttr{1,  Welol::WL_FLOAT2, quadVertices.data(), quadVerticesSize, false};
+    Welol::VertexAttribute gradientCoordinates{2, Welol::WL_FLOAT, particlesInfo.gradientTextureCoordinates.data(), (unsigned int) settings->maxParticles, true};
 
     particleRenderOperation.addVertexAttribute(positionAttr);
-    particleRenderOperation.addVertexAttribute(quadPosAttr);
+    particleRenderOperation.addVertexAttribute(quadPosAttr);       
+    particleRenderOperation.addVertexAttribute(gradientCoordinates);       
 
     glRenderer.initializeRenderOperation(particleRenderOperation);
 
+    gradientTexture.attachImageData(cameraTexturePath);
+ 
+    // Gradient Texture
+    //std::string gTexPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\FluidSim\\particleGradient.png";
+    // std::string gTexPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\resource\\skybox\\cubemap\\cubemap_negy.png";
+    // std::string textureName = "gradientTexture";
+    // unsigned int texUnit = 4;
+    // unsigned int mipLevel = 0;
+    // gradientTexture = Welol::Texture{Welol::WL_TEX_2D, Welol::WL_RGBA, gTexPath, mipLevel, textureName, texUnit};
+    // gradientTexture.attachImageData(gTexPath);
+
+
+    // std::string cameraTexturePath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\resource\\skybox\\cubemap\\cubemap_negy.png";
+    // std::string cameraTextureName = "gradientTexture";
+    // unsigned int texUnit = 0;
+    // gradientTexture = Welol::Texture{Welol::WL_TEX_2D, Welol::WL_RGBA, cameraTexturePath, 0, cameraTextureName, texUnit};
+    // gradientTexture.attachImageData(cameraTexturePath);
 }
 
 void Simulation::updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, glm::mat4& projection) {
    
     shaderProg.use();
 
-    glRenderer.render(particleRenderOperation);
-
+    
     shaderProg.setMatrix4fv("view", view);
     shaderProg.setMatrix4fv("projection", projection);
     shaderProg.setMatrix4fv("model", particleModelMatrix);
     shaderProg.setFloat("radius", particleRadius);
+    gradientTexture.update(shaderProg);
+    glRenderer.render(particleRenderOperation);
+
+
+
     //glRenderer.updateRenderOperationVertexAttribute(particleRenderOperation, 0, 0, particlesInfo.positions.data());
     unsigned int numberOfBytes = sizeof(glm::vec2) * particlesInfo.positions.size();
     glRenderer.addSizeBytesToBuffer(particleRenderOperation, 0, 0, numberOfBytes, particlesInfo.positions.data());
+    unsigned int gradientBytes = sizeof(float) * particlesInfo.gradientTextureCoordinates.size();
+    glRenderer.addSizeBytesToBuffer(particleRenderOperation, 2, 0, gradientBytes, particlesInfo.gradientTextureCoordinates.data());
+    
 }
 
 
@@ -289,12 +320,7 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
                 // Near Force.
                 // Prevent clustering by applying a (near) force inverse propertional to distance between particles.
                 // The smaller the distance the higher the force. 
-                // particlesInfo.velocities[i][0] += (-dir.x) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
-                // particlesInfo.velocities[i][1] += (-dir.y) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
-                // // move the neighbor in the opposite direction.
-                // particlesInfo.velocities[neighborID][0] += (dir.x) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
-                // particlesInfo.velocities[neighborID][1] += (dir.y) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
-
+                // move the neighbor in the opposite direction.
                 nFx += (-dir.x) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
                 nFy += (-dir.y) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
             }
@@ -323,6 +349,14 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
         particlesInfo.velocities[i][0] = halfDeltaVelX + accX * settings->deltaTime;
         particlesInfo.velocities[i][1] = halfDeltaVelY + accY * settings->deltaTime;
         particlesInfo.velocities[i][1] += (settings->gravity * settings->deltaTime);
+
+        // compute the magnitude of the velocity and normalize it.
+        // This value will be used to determine the color of the particle in the color gradient.
+        float gradientImageWidth = 1920.0f;
+        float mag = (particlesInfo.velocities[i][0] * particlesInfo.velocities[i][0] + particlesInfo.velocities[i][1] * particlesInfo.velocities[i][1]) / (settings->maxSpeed * settings->maxSpeed);
+        particlesInfo.gradientTextureCoordinates[i] = mag;
+        //std::cout << "mag: " << mag << std::endl;
+        
 
         if (mouseInfo.leftButton || mouseInfo.rightButton)
             mouseInteraction(mouseInfo, i);
