@@ -46,6 +46,9 @@ NeighborQuery& HashTable::getNeighborIDs(glm::vec2& position)
 	// REVISIT: Perhaps make this a member variable?
 	unsigned int neighborCellsCount = 9;
 
+	// REVISIT:(temporary)
+	// NeighborQuery query;
+	// query.neighborBucket.resize(72);
 	query.size = 0;
 
 	glm::vec2 currentCellPos = getCellPosition(position);
@@ -65,14 +68,14 @@ NeighborQuery& HashTable::getNeighborIDs(glm::vec2& position)
 		// Go to particleCount and find how much to advance start at start
 		unsigned int size = particleCounts[key];
 
-		for (unsigned int i = 0; i < size; i++)
+		for (unsigned int j = 0; j < size; j++)
 		{
-			unsigned int id = sortedParticleIDs[start + i];
-
+			
+			unsigned int id = sortedParticleIDs[start + j];
 			 if (query.size >= query.neighborBucket.size())
 			 {
-			 	query.neighborBucket.resize(query.size + 10);
-			 }
+			}
+			query.neighborBucket.resize(query.size + 10);
 
 			query.neighborBucket[query.size] = id;
 			query.size += 1;

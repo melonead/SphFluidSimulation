@@ -80,10 +80,10 @@ private:
     // Gradient Texture
     //std::string gTexPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\FluidSim\\particleGradient.png";
     // std::string gTexPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\resource\\skybox\\cubemap\\cubemap_negy.png";
-    std::string cameraTexturePath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\resource\\3DModels\\images\\testTexture.png";
-    std::string cameraTextureName = "cameraTexture";
+    std::string cameraTexturePath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\FluidSim\\particleGradient.png";
+    std::string cameraTextureName = "gradientTexture";
     unsigned int texUnit = 0;
-    Welol::Texture gradientTexture{Welol::WL_TEX_2D, Welol::WL_RGBA, cameraTexturePath, 0, cameraTextureName, texUnit};
+    Welol::Texture gradientTexture{Welol::WL_TEX_2D, Welol::WL_RGB, cameraTexturePath, 0, cameraTextureName, texUnit};
 
     /*
         setUpRendering prepares for the rendering of the particles.

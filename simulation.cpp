@@ -4,6 +4,7 @@
 #include "Renderer.h"
 #include "Camera.h"
 #include "Texture.h"
+#include "omp.h"
 
 // taking the particles temporarily so that i don't break the old code completely
 // as I reimplement the rendering system
@@ -98,18 +99,22 @@ void Simulation::setParticles(unsigned int numParticles, Welol::Renderer& glRend
         // Generate indices before creating the table.
         table.generateParticlesIDs(settings->numParticles);
         table.createTable(particlesInfo.positions);
+
+        particleRenderOperation.setNumberOfInstancesToRender(particlesInfo.positions.size());
     } 
     else // Remove particles if any have been removed.
     {
         unsigned int diff = settings->prevNumParticles - settings->numParticles;
 
-        if (diff < 0)
+        if (diff <= 0)
             return;
         // Remove diff particles from positions list
         for (unsigned int i = 0; i < diff; i++)
         {
             particlesInfo.positions.pop_back();
         }
+
+        particleRenderOperation.setNumberOfInstancesToRender(particlesInfo.positions.size());
     }
 }
 
@@ -216,7 +221,7 @@ void Simulation::updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, g
 // computeDensities: compute densities for all the particles
 void Simulation::computeDensities()
 {
-    
+    // #pragma omp parallel for
     for (int i = 0; i < settings->numParticles; i++)
     {
         // compute predicted positions.
@@ -259,6 +264,7 @@ void Simulation::computeDensities()
 
 void Simulation::computeForces(MouseInfo& mouseInfo)
 {
+    // #pragma omp parallel for
     for (int i = 0; i < settings->numParticles; i++)
     {
         float dist = 0.0f;
@@ -279,7 +285,7 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
             a new container?
         */
         // Compute the force density field value at this location
-        NeighborQuery& nQuery = table.getNeighborIDs(particlesInfo.predictedPositions[i]);
+        NeighborQuery& nQuery = table.getNeighborIDs(particlesInfo.predictedPositions[i]);  
         
         unsigned int neighborID;
 
