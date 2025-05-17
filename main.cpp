@@ -167,9 +167,12 @@ int main()
 
     //glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
-    //Text text{glRenderer};
+    Text text{glRenderer};
 
     SettingsSingleton* settings = SettingsSingleton::instance();
+
+    const GLubyte* version = glGetString(GL_VERSION);
+    std::cout << "gl version is: " << version << std::endl;
 
     while (!glfwWindowShouldClose(window))
     {

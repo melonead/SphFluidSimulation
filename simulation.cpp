@@ -16,6 +16,7 @@ Simulation::Simulation(Shader& circleShaderProgram, Welol::Renderer& glRenderer)
     float containerPosX = -settings->containerWidth * 0.5f;
     float containerPosY = settings->containerHeight * 0.5f;
     vis = Visualization{table.getCellSize(), settings->containerWidth, settings->containerHeight, containerPosX, containerPosY, glRenderer};
+    vis.setRenderer(glRenderer);
     vis.setPerspectiveMatrix(perspectiveMatrix);
 
     setParticles(settings->numParticles, glRenderer);
@@ -133,20 +134,13 @@ void Simulation::update(Welol::Renderer& glRenderer, Welol::Camera& camera, floa
         computeDensities();
         computeForces(mouseInfo);
     }
-    // if (mouseInfo.leftButton || mouseInfo.rightButton)
-    //     mouseInteraction(mouseInfo);
     
     
-    //vis.drawGrid(glRenderer, view, perspectiveMatrix);
+    updateRendering(glRenderer, camera.getViewMatrix(), perspectiveMatrix);
+    vis.drawGrid(glRenderer);
 
     vis.drawRectangle(-settings->containerWidth * 0.5f, settings->containerHeight * 0.5f, settings->containerWidth, settings->containerHeight);
-    //vis.drawRectangle(0.0f, 0.0f, settings->containerWidth, settings->containerHeight);
     
-    //std::cout << "particle difference: " << settings->numParticles - settings->prevNumParticles << std::endl;
-
-    // std::cout << "particles: " << settings->numParticles << " positions: " << particlesInfo.positions.size() << std::endl;
-    //if (particlesInfo.positions.size() == settings->numParticles)
-    updateRendering(glRenderer, camera.getViewMatrix(), perspectiveMatrix);
 
     table.createTable(particlesInfo.positions);
 }
@@ -177,22 +171,6 @@ void Simulation::setUpRendering(Welol::Renderer& glRenderer) {
     glRenderer.initializeRenderOperation(particleRenderOperation);
 
     gradientTexture.attachImageData(cameraTexturePath);
- 
-    // Gradient Texture
-    //std::string gTexPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\\FluidSim\\particleGradient.png";
-    // std::string gTexPath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\resource\\skybox\\cubemap\\cubemap_negy.png";
-    // std::string textureName = "gradientTexture";
-    // unsigned int texUnit = 4;
-    // unsigned int mipLevel = 0;
-    // gradientTexture = Welol::Texture{Welol::WL_TEX_2D, Welol::WL_RGBA, gTexPath, mipLevel, textureName, texUnit};
-    // gradientTexture.attachImageData(gTexPath);
-
-
-    // std::string cameraTexturePath = "C:\\Users\\brian\\programming_projects\\WelolRenderer\\WelolRenderer\resource\\skybox\\cubemap\\cubemap_negy.png";
-    // std::string cameraTextureName = "gradientTexture";
-    // unsigned int texUnit = 0;
-    // gradientTexture = Welol::Texture{Welol::WL_TEX_2D, Welol::WL_RGBA, cameraTexturePath, 0, cameraTextureName, texUnit};
-    // gradientTexture.attachImageData(cameraTexturePath);
 }
 
 void Simulation::updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, glm::mat4& projection) {
@@ -221,7 +199,7 @@ void Simulation::updateRendering(Welol::Renderer& glRenderer, glm::mat4& view, g
 // computeDensities: compute densities for all the particles
 void Simulation::computeDensities()
 {
-    // #pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < settings->numParticles; i++)
     {
         // compute predicted positions.
@@ -232,7 +210,7 @@ void Simulation::computeDensities()
         //int nbSize = particlesInfo.neighbors[i].size();
         float density = 1.0f;
 
-        NeighborQuery& nQuery = table.getNeighborIDs(particlesInfo.positions[i]);
+        NeighborQuery nQuery = table.getNeighborIDs(particlesInfo.positions[i]);
         
         unsigned int neighborID;
         // std::cout << "bucket size: " << nQuery.size << std::endl;
@@ -251,7 +229,7 @@ void Simulation::computeDensities()
 
             if (dist <= settings->radiusOfInfluence) {
                    
-                density += settings->mass * cubicSplineKernel(dist);
+                density += settings->mass * poly6Kernel(dist);
             }
         }
         
@@ -264,7 +242,7 @@ void Simulation::computeDensities()
 
 void Simulation::computeForces(MouseInfo& mouseInfo)
 {
-    // #pragma omp parallel for
+    #pragma omp parallel for
     for (int i = 0; i < settings->numParticles; i++)
     {
         float dist = 0.0f;
@@ -276,6 +254,8 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
         float pressureForceFieldY = 0.0f;
         float viscosityForceFieldX = 0.0f;
         float viscosityForceFieldY = 0.0f;
+        float surfaceTensionX = 0.0f;
+        float surfaceTensionY = 0.0f;
 
         float nFx = 0.0f;
         float nFy = 0.0f;
@@ -285,7 +265,7 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
             a new container?
         */
         // Compute the force density field value at this location
-        NeighborQuery& nQuery = table.getNeighborIDs(particlesInfo.predictedPositions[i]);  
+        NeighborQuery nQuery = table.getNeighborIDs(particlesInfo.predictedPositions[i]);  
         
         unsigned int neighborID;
 
@@ -302,7 +282,7 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
            
            if (dist <= settings->radiusOfInfluence) 
            {
-               glm::vec2 dir = (particlesInfo.predictedPositions[neighborID] - particlesInfo.predictedPositions[i]) / dist;
+                glm::vec2 dir = (particlesInfo.predictedPositions[neighborID] - particlesInfo.predictedPositions[i]) / dist;
                 if (dist <= 0.0f)
                 {
                     dir.x = (float)std::rand() / (float)std::rand();
@@ -320,8 +300,8 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
                 pressureForceFieldY += dir.y * pField;
 
                 glm::vec2 visField = computeViscosity(particlesInfo.velocities[i], particlesInfo.velocities[neighborID], particlesInfo.densities[neighborID], dist);
-                viscosityForceFieldX += (dir.x) * visField.x;
-                viscosityForceFieldY += (dir.y) * visField.y;
+                viscosityForceFieldX += visField.x;
+                viscosityForceFieldY += visField.y;
 
                 // Near Force.
                 // Prevent clustering by applying a (near) force inverse propertional to distance between particles.
@@ -329,21 +309,38 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
                 // move the neighbor in the opposite direction.
                 nFx += (-dir.x) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
                 nFy += (-dir.y) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
+
+
+
+                // Surface Tension
+                float sTGrad = surfaceTensionField(dist, densNeig);
+                float colField = colorField(dist, densNeig);
+
+                if (abs(colField) < 0.005f)
+                    continue;
+
+                float lap = surfaceTensionLaplacian(dist, densNeig);
+
+                surfaceTensionX = (1.0f - sTGrad) * dir.x;
+                surfaceTensionY = (1.0f - sTGrad) * dir.y;
+
+                // surfaceTensionX = surfaceTensionField(dist, densNeig);
             }
         }
 
         // Accumulate the forces
 
-        totalForceFieldX += -pressureForceFieldX;
-        totalForceFieldY += -pressureForceFieldY;
+        totalForceFieldX += pressureForceFieldX * -1.0f;
+        totalForceFieldY += pressureForceFieldY * -1.0f;
 
         totalForceFieldX += nFx;
         totalForceFieldY += nFy;
 
+        totalForceFieldX += viscosityForceFieldX * settings->viscosityConstant;
+        totalForceFieldY += viscosityForceFieldY * settings->viscosityConstant;
 
-
-        // totalForceFieldX += viscosityForceFieldX * viscosityConstant;
-        // totalForceFieldY += viscosityForceFieldY * viscosityConstant;
+        // totalForceFieldX += surfaceTensionX;
+        // totalForceFieldY += surfaceTensionY;
 
         // Compute acceleration
         float accX = (totalForceFieldX)  / particlesInfo.densities[i];
@@ -360,8 +357,8 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
         // This value will be used to determine the color of the particle in the color gradient.
         float gradientImageWidth = 1920.0f;
         float mag = (particlesInfo.velocities[i][0] * particlesInfo.velocities[i][0] + particlesInfo.velocities[i][1] * particlesInfo.velocities[i][1]) / (settings->maxSpeed * settings->maxSpeed);
+        //particlesInfo.gradientTextureCoordinates[i] = mag;
         particlesInfo.gradientTextureCoordinates[i] = mag;
-        //std::cout << "mag: " << mag << std::endl;
         
 
         if (mouseInfo.leftButton || mouseInfo.rightButton)
@@ -460,7 +457,7 @@ void Simulation::mouseInteraction(MouseInfo& mouseInfo, unsigned int ID)
     float radius = settings->radiusOfInfluence * 10.0f;
     float dist = getDistance(particlesInfo.positions[ID], mouseWorldPosition);
     glm::vec2 dir;
-    float strength = 2.0f;
+    float strength = settings->mouseStrength;
 
     if (mouseInfo.rightButton)
         strength *= -1.0f;
@@ -528,7 +525,7 @@ float Simulation::_min(float a, float b)
 // getPressure: return the pressure to be applied to a particle
 float Simulation::getPressure(float d)
 {	
-    float v = settings->pressureConstant * (d - settings->idealDensity);
+    float v = (settings->pressureConstant) * (settings->idealDensity / 7.0f) * (powf((d/settings->idealDensity), 7.0f) - 1.0f);
     return v;
 }
 
@@ -539,21 +536,17 @@ float Simulation::poly6Kernel(float dist)
     return a * b;
 }
 
-float Simulation::cubicSplineKernel(float dist)
+float Simulation::poly6Gradient(float dist)
 {
-    float q = (1.0f / settings->radiusOfInfluence) * dist;
-    float a = (40.0f / (7.0f * settings->PI * powf(settings->radiusOfInfluence, 2.0f)));
-
-    if (q <= 0.5f)
-        return a * (6.0f * (powf(q, 3.0f) - powf(q, 2.0f)) + 1.0f);
-    else 
-        return a * (2.0f * powf((1.0f - q), 3.0f));
+    float res = (29.53125 / (settings->PI * powf(settings->radiusOfInfluence, 9.0f)));
+    res *= powf(powf(settings->radiusOfInfluence, 2) - powf(dist, 2), 2) * dist;
+    return res;
 }
 
 float Simulation::spikyKernel(float dist)
 {
-    float a = 15.0f / (settings->PI * powf(settings->radiusOfInfluence, 6.0f));
-    float b = powf((settings->radiusOfInfluence - dist), 3.0f);
+    float a = -45.0f / (settings->PI * powf(settings->radiusOfInfluence, 6.0f));
+    float b = powf((settings->radiusOfInfluence - dist), 2.0f);
     return a * b;
 }
 
@@ -564,12 +557,29 @@ float Simulation::viscosityLaplacian(float dist)
     return a * b;
 }
 
-float Simulation::quadraticSpkikyKernel(float dist)
+float Simulation::colorField(float dist, float density)
 {
-    return powf(1.0f - (dist / settings->radiusOfInfluence), 2.0f);
+    return settings->mass * (1.0f / density) * poly6Kernel(dist);
 }
 
-float Simulation::cubicSpikyKernel(float dist)
+float Simulation::surfaceTensionField(float dist, float density)
 {
-    return powf(1.0f - (dist / settings->radiusOfInfluence), 3.0f);
+    // I omitted the mass which give much sharper results.
+    return (1.0f / density) * poly6Gradient(dist);
+}
+
+float Simulation::surfaceTensionLaplacian(float dist, float density)
+{
+    float res = powf(settings->radiusOfInfluence, 2) - powf(dist, 2);
+    res *= (powf(settings->radiusOfInfluence, 2) - 5.0f * powf(dist, 2));
+    res *= (29.53125 / (settings->PI * powf(settings->radiusOfInfluence, 9.0f)));
+    return res;
+}
+
+// REVISIT: compute surface tension here.
+float Simulation::computeSurfaceTension(float dist, float density)
+{
+    float gradientField = surfaceTensionField(dist, density);
+    float laplacian = surfaceTensionLaplacian(dist, density);
+    return 0;
 }

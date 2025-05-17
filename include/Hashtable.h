@@ -29,7 +29,7 @@ public:
 		Get the IDs of all the neighboring particles.
 	*/
 
-	NeighborQuery& getNeighborIDs(glm::vec2& position);
+	NeighborQuery getNeighborIDs(glm::vec2& position);
 
 	NeighborQuery& getNeighborIDsForMouse(glm::vec2& position, float radius);
 	

@@ -111,11 +111,12 @@ private:
 
     // poly6a: poly6 kernel
     float poly6Kernel(float dist);
-
-    float cubicSplineKernel(float dist);
+    float poly6Gradient(float dist);
+    // Color field has nothing to do with colors of the particles
+    // this is a name for this quantity in the literature.
+    float colorField(float dist, float density);
+    float surfaceTensionLaplacian(float dist, float density);
     float spikyKernel(float dist);
-    float quadraticSpkikyKernel(float dist);
-    float cubicSpikyKernel(float dist);
     float viscosityLaplacian(float dist);
 
     glm::vec2 getMouseWorldCoords(float mouseX, float mouseY);
@@ -138,6 +139,9 @@ private:
         float neighborDensity,
         float dist
     );
+
+    float surfaceTensionField(float dist, float density);
+    float computeSurfaceTension(float dist, float density);
 
     glm::vec2 computeViscosity(std::array<float, 2>& velCurr, std::array<float, 2>& velNeig, float densNeig, float dist);
 

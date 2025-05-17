@@ -41,7 +41,7 @@ void HashTable::generateParticlesIDs(unsigned int numParticles)
 
 
 
-NeighborQuery& HashTable::getNeighborIDs(glm::vec2& position)
+NeighborQuery HashTable::getNeighborIDs(glm::vec2& position)
 {
 	// REVISIT: Perhaps make this a member variable?
 	unsigned int neighborCellsCount = 9;
@@ -49,7 +49,10 @@ NeighborQuery& HashTable::getNeighborIDs(glm::vec2& position)
 	// REVISIT:(temporary)
 	// NeighborQuery query;
 	// query.neighborBucket.resize(72);
+
+	NeighborQuery query;
 	query.size = 0;
+	query.neighborBucket.resize(72);
 
 	glm::vec2 currentCellPos = getCellPosition(position);
 	glm::vec2 neighborCellPos;
