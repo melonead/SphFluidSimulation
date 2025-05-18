@@ -282,7 +282,7 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
            
            if (dist <= settings->radiusOfInfluence) 
            {
-                glm::vec2 dir = (particlesInfo.predictedPositions[neighborID] - particlesInfo.predictedPositions[i]) / dist;
+                glm::vec2 dir = (particlesInfo.predictedPositions[i] - particlesInfo.predictedPositions[neighborID]) / dist;
                 if (dist <= 0.0f)
                 {
                     dir.x = (float)std::rand() / (float)std::rand();
@@ -307,22 +307,28 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
                 // Prevent clustering by applying a (near) force inverse propertional to distance between particles.
                 // The smaller the distance the higher the force. 
                 // move the neighbor in the opposite direction.
-                nFx += (-dir.x) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
-                nFy += (-dir.y) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
+                nFx += (dir.x) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
+                nFy += (dir.y) * (1.0f - dist/settings->radiusOfInfluence) * settings->nearForceConstant;
 
 
 
                 // Surface Tension
-                float sTGrad = surfaceTensionField(dist, densNeig);
-                float colField = colorField(dist, densNeig);
+                // float colField = colorField(dist, densNeig);
+                // float sTGrad = surfaceTensionField(dist, densNeig);
 
-                if (abs(colField) < 0.005f)
-                    continue;
+                // glm::vec2 gradField = dir * sTGrad;
 
-                float lap = surfaceTensionLaplacian(dist, densNeig);
+                // if (abs(colField) < 0.005f)
+                //     continue;
 
-                surfaceTensionX = (1.0f - sTGrad) * dir.x;
-                surfaceTensionY = (1.0f - sTGrad) * dir.y;
+                // float lap = surfaceTensionLaplacian(dist, densNeig);
+
+                // float curvature = (-lap * colField) / abs(sTGrad);
+                // glm::vec2 traction = settings->tensionMultiplier * curvature * glm::normalize(gradField);
+                // glm::vec2 tension = -settings->tensionMultiplier * lap * colField * gradField;
+
+                // surfaceTensionX = tension.x;
+                // surfaceTensionY = tension.y;
 
                 // surfaceTensionX = surfaceTensionField(dist, densNeig);
             }
@@ -339,25 +345,21 @@ void Simulation::computeForces(MouseInfo& mouseInfo)
         totalForceFieldX += viscosityForceFieldX * settings->viscosityConstant;
         totalForceFieldY += viscosityForceFieldY * settings->viscosityConstant;
 
-        // totalForceFieldX += surfaceTensionX;
-        // totalForceFieldY += surfaceTensionY;
+        totalForceFieldX += surfaceTensionX;
+        totalForceFieldY += surfaceTensionY;
 
         // Compute acceleration
         float accX = (totalForceFieldX)  / particlesInfo.densities[i];
         float accY = (totalForceFieldY)  / particlesInfo.densities[i];
-        // Compute velocity 
-        // REVISIT: temporary 
-        float halfDeltaVelX = particlesInfo.velocities[i][0] - 0.5f * settings->deltaTime * accX;
-        float halfDeltaVelY = particlesInfo.velocities[i][1] - 0.5f * settings->deltaTime * accY;
-        particlesInfo.velocities[i][0] = halfDeltaVelX + accX * settings->deltaTime;
-        particlesInfo.velocities[i][1] = halfDeltaVelY + accY * settings->deltaTime;
+        // Compute velocity
+        particlesInfo.velocities[i][0] += accX * settings->deltaTime;
+        particlesInfo.velocities[i][1] += accY * settings->deltaTime;
         particlesInfo.velocities[i][1] += (settings->gravity * settings->deltaTime);
 
         // compute the magnitude of the velocity and normalize it.
         // This value will be used to determine the color of the particle in the color gradient.
         float gradientImageWidth = 1920.0f;
         float mag = (particlesInfo.velocities[i][0] * particlesInfo.velocities[i][0] + particlesInfo.velocities[i][1] * particlesInfo.velocities[i][1]) / (settings->maxSpeed * settings->maxSpeed);
-        //particlesInfo.gradientTextureCoordinates[i] = mag;
         particlesInfo.gradientTextureCoordinates[i] = mag;
         
 
@@ -558,8 +560,9 @@ float Simulation::viscosityLaplacian(float dist)
 }
 
 float Simulation::colorField(float dist, float density)
-{
-    return settings->mass * (1.0f / density) * poly6Kernel(dist);
+{   
+    // Omit mass for consistency with surfaceTensionField.
+    return (1.0f / density) * poly6Kernel(dist);
 }
 
 float Simulation::surfaceTensionField(float dist, float density)
@@ -574,12 +577,4 @@ float Simulation::surfaceTensionLaplacian(float dist, float density)
     res *= (powf(settings->radiusOfInfluence, 2) - 5.0f * powf(dist, 2));
     res *= (29.53125 / (settings->PI * powf(settings->radiusOfInfluence, 9.0f)));
     return res;
-}
-
-// REVISIT: compute surface tension here.
-float Simulation::computeSurfaceTension(float dist, float density)
-{
-    float gradientField = surfaceTensionField(dist, density);
-    float laplacian = surfaceTensionLaplacian(dist, density);
-    return 0;
 }

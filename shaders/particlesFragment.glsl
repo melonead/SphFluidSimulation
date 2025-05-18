@@ -23,5 +23,5 @@ void main()
     vec4 cicleColor = texture(gradientTexture, v);
     vec4 finalCircleColor = mix(cicleColor, transparent, smoothstep(innerRadius, outerRadius, dist));
     color = finalCircleColor;
-    // color = vec4(fragXCoord, 0.0, 0.0, 1.0);
+    // color = vec4(1.0 - fragXCoord, 0.0, 0.0, 1.0);
 }

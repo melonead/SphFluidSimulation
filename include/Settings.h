@@ -20,13 +20,14 @@ public:
     float deltaTime = 1.0f / 60.0f;
     // float pressureConstant = -4.3f;
     float pressureConstant = 10.0f;
-    float nearForceConstant{1000.0f};
+    float nearForceConstant{800.0f};
     float viscosityConstant = 0.5f;
     float gravity{-9.803f};
     float mass{0.07f};
     float maxSpeed{20.0f};
     float idealDensity{ 50.0f };
     float mouseStrength{1.0f};
+    float tensionMultiplier{0.0f};
     bool startSimulation{false};
     bool updateParticlesCount{false};
 

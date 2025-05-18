@@ -50,6 +50,8 @@ NeighborQuery HashTable::getNeighborIDs(glm::vec2& position)
 	// NeighborQuery query;
 	// query.neighborBucket.resize(72);
 
+	// We are creating this here insteading of using a single one because
+	// of multithreading. 
 	NeighborQuery query;
 	query.size = 0;
 	query.neighborBucket.resize(72);
@@ -146,7 +148,6 @@ NeighborQuery& HashTable::getNeighborIDsForMouse(glm::vec2& position, float radi
 
 void HashTable::createTable(std::vector<glm::vec2>& positions)
 {
-	// REVISIT: Is there another way to make all the values zeros
 	grid = std::vector<unsigned int>(numberOfCells + 1, 0);
 	particleCounts = std::vector<unsigned int>(numberOfCells, 0);
 	unsigned int numParticles = positions.size();
@@ -157,7 +158,7 @@ void HashTable::createTable(std::vector<glm::vec2>& positions)
 		unsigned int key = computeKey(position);
 
 		grid[key] += 1;
-		// This apparent duplication is necessary because cellParticlesCout is goint to change.
+		// This apparent duplication is necessary because cellParticlesCount is going to change.
 		particleCounts[key] += 1;
 	}
 	// compute partial sums
@@ -209,11 +210,3 @@ int HashTable::computeKey(glm::vec2& position)
 
 	return key;
 }
-
-/*
-void HashTable::computeAllNeighbors(std::vector<glm::vec2>& particlePositions, std::vector<std::vector<unsigned int>>& neighbors) {
-	for (unsigned int i = 0; i < numParticles; i++) {
-		getNeighbors(particlePositions, i, neighbors);
-	}
-}
-*/

@@ -26,7 +26,8 @@ void SettingsSingleton::displayUi()
         ImGui::SliderFloat("Near Force Multiplier", &nearForceConstant, -1000.0f, 2000.0f);
         ImGui::DragFloat("Particle Mass", &mass, 0.01f);
         ImGui::DragFloat("Max Speed", &maxSpeed, 0.1f);
-
+        ImGui::DragFloat("Tension Multiplier", &tensionMultiplier, 0.1f);
+        
         prevNumParticles = numParticles;
    
         if (ImGui::SliderInt("Particles", &numParticles, 1, maxParticles))

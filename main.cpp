@@ -172,7 +172,6 @@ int main()
     SettingsSingleton* settings = SettingsSingleton::instance();
 
     const GLubyte* version = glGetString(GL_VERSION);
-    std::cout << "gl version is: " << version << std::endl;
 
     while (!glfwWindowShouldClose(window))
     {
